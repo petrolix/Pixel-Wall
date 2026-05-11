@@ -34,7 +34,6 @@ background:#1b1b1b;
 padding:10px;
 border-radius:10px;
 border:1px solid #333;
-touch-action:auto;
 }
 
 button{
@@ -122,7 +121,7 @@ const CELL = 1;
 
 /* ================= STATE ================= */
 
-let scale = 4;
+let scale = 1;   // 🔥 FIX: 100% START
 
 let offsetX = 0;
 let offsetY = 0;
@@ -152,8 +151,8 @@ function getPointerPos(e){
 const rect = canvas.getBoundingClientRect();
 
 return {
-x:(e.clientX - rect.left - offsetX) / scale,
-y:(e.clientY - rect.top - offsetY) / scale
+x: (e.clientX - rect.left - offsetX) / scale,
+y: (e.clientY - rect.top - offsetY) / scale
 };
 
 }
@@ -205,13 +204,14 @@ function draw(){
 ctx.clearRect(0,0,canvas.width,canvas.height);
 
 ctx.save();
+
 ctx.translate(offsetX,offsetY);
 ctx.scale(scale,scale);
 
 ctx.fillStyle="#151515";
 ctx.fillRect(0,0,WORLD_W,WORLD_H);
 
-/* grid */
+/* GRID */
 if(scale >= 12){
 
 ctx.strokeStyle="#222";
@@ -233,24 +233,30 @@ ctx.stroke();
 
 }
 
-/* blocks */
+/* BLOCKS */
 for(let i=0;i<blocks.length;i++){
 
-const b=blocks[i];
+const b = blocks[i];
 
-let img=imageCache[b.img];
+let img = imageCache[b.img];
 
 if(!img){
-img=new Image();
-img.src=b.img;
+img = new Image();
+img.src = b.img;
 imageCache[b.img]=img;
 }
 
 if(img && img.complete){
-ctx.drawImage(img,b.x,b.y,b.w,b.h);
+ctx.drawImage(
+img,
+Math.round(b.x),
+Math.round(b.y),
+Math.round(b.w),
+Math.round(b.h)
+);
 }
 
-if(i===selectedBlock){
+if(i === selectedBlock){
 ctx.strokeStyle="red";
 ctx.lineWidth=3/scale;
 ctx.strokeRect(b.x,b.y,b.w,b.h);
@@ -258,19 +264,19 @@ ctx.strokeRect(b.x,b.y,b.w,b.h);
 
 }
 
-/* selection */
+/* SELECTION */
 if(admin && selectStart && selectEnd){
 
-let x1=snap(selectStart.x);
-let y1=snap(selectStart.y);
-let x2=snap(selectEnd.x);
-let y2=snap(selectEnd.y);
+let x1 = snap(selectStart.x);
+let y1 = snap(selectStart.y);
+let x2 = snap(selectEnd.x);
+let y2 = snap(selectEnd.y);
 
-if(x2<x1)[x1,x2]=[x2,x1];
-if(y2<y1)[y1,y2]=[y2,y1];
+if(x2 < x1)[x1,x2]=[x2,x1];
+if(y2 < y1)[y1,y2]=[y2,y1];
 
-const w=(x2-x1)+CELL;
-const h=(y2-y1)+CELL;
+const w = (x2-x1)+CELL;
+const h = (y2-y1)+CELL;
 
 ctx.fillStyle="rgba(0,150,255,0.25)";
 ctx.strokeStyle="#00a8ff";
@@ -320,7 +326,7 @@ draw();
 
 resetBtn.onclick=()=>{
 
-scale=4;
+scale=1;
 centerWorld();
 clearSelection();
 draw();
@@ -374,12 +380,6 @@ if(admin && selectStart && selectEnd){
 setTimeout(()=>imageInput.click(),50);
 }
 
-});
-
-/* ================= CLICK UI FIX ================= */
-
-document.getElementById("toolbar").addEventListener("click",(e)=>{
-e.stopPropagation();
 });
 
 /* ================= CLICK ================= */
