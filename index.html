@@ -22,7 +22,6 @@ background:#0f0f0f;
 font-family:Arial;
 }
 
-/* TOOLBAR */
 #toolbar{
 position:fixed;
 top:10px;
@@ -47,26 +46,22 @@ cursor:pointer;
 touch-action: manipulation;
 }
 
-/* INFO TOOLTIP */
-#tooltip{
-position:fixed;
-pointer-events:none;
-background:rgba(0,0,0,0.75);
+button:hover{background:#333;}
+
+#info{
 color:#fff;
-padding:6px 10px;
-border-radius:6px;
-font-size:12px;
-z-index:99999;
-transform:translate(10px,10px);
-white-space:nowrap;
+font-size:14px;
 }
 
-/* CANVAS */
 canvas{
 display:block;
 cursor:grab;
 image-rendering: pixelated;
 touch-action:none;
+}
+
+canvas:active{
+cursor:grabbing;
 }
 
 </style>
@@ -80,8 +75,6 @@ touch-action:none;
 <button id="resetBtn">Reset</button>
 <div id="info"></div>
 </div>
-
-<div id="tooltip"></div>
 
 <input type="file" id="imageInput" accept="image/*" hidden>
 <canvas id="canvas"></canvas>
@@ -105,6 +98,11 @@ appId: "1:623723716677:web:4c22d403e1251ef0e9432c"
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
+/* ================= CLOUDINARY ================= */
+
+const CLOUD_NAME = "dkwijnvsl";
+const UPLOAD_PRESET = "pixelwall";
+
 /* ================= CANVAS ================= */
 
 const canvas = document.getElementById("canvas");
@@ -123,12 +121,13 @@ const CELL = 1;
 
 /* ================= STATE ================= */
 
-let scale = 1;
+let scale = 1;   // 🔥 FIX: 100% START
 
 let offsetX = 0;
 let offsetY = 0;
 
 let dragging = false;
+
 let dragX = 0;
 let dragY = 0;
 
@@ -139,14 +138,7 @@ let selectEnd = null;
 
 let selectedBlock = -1;
 
-let hoverX = null;
-let hoverY = null;
-
 let blocks = [];
-
-/* ================= TOOLTIP ================= */
-
-const tooltip = document.getElementById("tooltip");
 
 /* ================= CACHE ================= */
 
@@ -159,8 +151,8 @@ function getPointerPos(e){
 const rect = canvas.getBoundingClientRect();
 
 return {
-x:(e.clientX - rect.left - offsetX) / scale,
-y:(e.clientY - rect.top - offsetY) / scale
+x: (e.clientX - rect.left - offsetX) / scale,
+y: (e.clientY - rect.top - offsetY) / scale
 };
 
 }
@@ -171,15 +163,21 @@ function snap(v){
 return Math.floor(v / CELL) * CELL;
 }
 
-function drawTooltip(x,y){
-
-tooltip.style.left = x + "px";
-tooltip.style.top = y + "px";
-
-if(hoverX !== null){
-tooltip.innerText = `X:${Math.floor(hoverX)} Y:${Math.floor(hoverY)}`;
+function centerWorld(){
+offsetX = (canvas.width - WORLD_W * scale) / 2;
+offsetY = (canvas.height - WORLD_H * scale) / 2;
 }
 
+function updateUI(){
+removeBtn.style.display =
+(admin && selectedBlock >= 0) ? "inline-block" : "none";
+}
+
+function clearSelection(){
+selectStart = null;
+selectEnd = null;
+selectedBlock = -1;
+updateUI();
 }
 
 /* ================= FIREBASE ================= */
@@ -214,7 +212,7 @@ ctx.fillStyle="#151515";
 ctx.fillRect(0,0,WORLD_W,WORLD_H);
 
 /* GRID */
-if(scale > 8){
+if(scale >= 12){
 
 ctx.strokeStyle="#222";
 ctx.lineWidth=1/scale;
@@ -235,30 +233,16 @@ ctx.stroke();
 
 }
 
-/* HOVER PIXEL HIGHLIGHT */
-if(hoverX !== null){
-
-ctx.strokeStyle="rgba(255,255,0,0.6)";
-ctx.lineWidth=1/scale;
-
-ctx.strokeRect(
-Math.floor(hoverX),
-Math.floor(hoverY),
-1,1
-);
-
-}
-
 /* BLOCKS */
 for(let i=0;i<blocks.length;i++){
 
-const b=blocks[i];
+const b = blocks[i];
 
-let img=imageCache[b.img];
+let img = imageCache[b.img];
 
 if(!img){
-img=new Image();
-img.src=b.img;
+img = new Image();
+img.src = b.img;
 imageCache[b.img]=img;
 }
 
@@ -272,14 +256,15 @@ Math.round(b.h)
 );
 }
 
-if(i===selectedBlock){
+if(i === selectedBlock){
 ctx.strokeStyle="red";
+ctx.lineWidth=3/scale;
 ctx.strokeRect(b.x,b.y,b.w,b.h);
 }
 
 }
 
-/* SNAP PREVIEW (GHOST BLOCK) */
+/* SELECTION */
 if(admin && selectStart && selectEnd){
 
 let x1 = snap(selectStart.x);
@@ -287,14 +272,14 @@ let y1 = snap(selectStart.y);
 let x2 = snap(selectEnd.x);
 let y2 = snap(selectEnd.y);
 
-if(x2<x1)[x1,x2]=[x2,x1];
-if(y2<y1)[y1,y2]=[y2,y1];
+if(x2 < x1)[x1,x2]=[x2,x1];
+if(y2 < y1)[y1,y2]=[y2,y1];
 
-const w=(x2-x1)+CELL;
-const h=(y2-y1)+CELL;
+const w = (x2-x1)+CELL;
+const h = (y2-y1)+CELL;
 
-ctx.fillStyle="rgba(0,150,255,0.2)";
-ctx.strokeStyle="rgba(0,150,255,0.8)";
+ctx.fillStyle="rgba(0,150,255,0.25)";
+ctx.strokeStyle="#00a8ff";
 ctx.lineWidth=2/scale;
 
 ctx.fillRect(x1,y1,w,h);
@@ -304,7 +289,6 @@ ctx.strokeRect(x1,y1,w,h);
 
 ctx.restore();
 
-/* UI TEXT */
 info.innerText =
 `Zoom ${(scale*100).toFixed(0)}% | Blocchi ${blocks.length}`;
 
@@ -319,19 +303,9 @@ const p=prompt("Password admin");
 if(p==="admin123"){
 admin=!admin;
 adminBtn.innerText=admin?"Admin ON":"Admin OFF";
-}
-
-};
-
-/* ================= RESET ================= */
-
-resetBtn.onclick=()=>{
-
-scale=1;
-offsetX=0;
-offsetY=0;
-
+clearSelection();
 draw();
+}
 
 };
 
@@ -342,40 +316,24 @@ removeBtn.onclick=()=>{
 if(selectedBlock>=0){
 blocks.splice(selectedBlock,1);
 saveCloud();
+clearSelection();
 draw();
 }
 
 };
 
+/* ================= RESET ================= */
+
+resetBtn.onclick=()=>{
+
+scale=1;
+centerWorld();
+clearSelection();
+draw();
+
+};
+
 /* ================= MOUSE ================= */
-
-canvas.addEventListener("mousemove",(e)=>{
-
-const pos=getPointerPos(e);
-
-hoverX=pos.x;
-hoverY=pos.y;
-
-/* tooltip */
-drawTooltip(e.clientX,e.clientY);
-
-if(admin && selectStart){
-selectEnd={x:pos.x,y:pos.y};
-draw();
-return;
-}
-
-if(dragging){
-offsetX+=e.movementX;
-offsetY+=e.movementY;
-draw();
-}
-
-draw();
-
-});
-
-/* ================= CLICK ================= */
 
 canvas.addEventListener("mousedown",(e)=>{
 
@@ -389,8 +347,160 @@ return;
 }
 
 dragging=true;
+dragX=e.clientX;
+dragY=e.clientY;
 
 });
+
+canvas.addEventListener("mousemove",(e)=>{
+
+const pos=getPointerPos(e);
+
+if(admin && selectStart){
+selectEnd={x:pos.x,y:pos.y};
+draw();
+return;
+}
+
+if(dragging){
+offsetX+=e.clientX-dragX;
+offsetY+=e.clientY-dragY;
+dragX=e.clientX;
+dragY=e.clientY;
+draw();
+}
+
+});
+
+canvas.addEventListener("mouseup",()=>{
+
+dragging=false;
+
+if(admin && selectStart && selectEnd){
+setTimeout(()=>imageInput.click(),50);
+}
+
+});
+
+/* ================= CLICK ================= */
+
+canvas.addEventListener("click",(e)=>{
+
+const pos=getPointerPos(e);
+
+selectedBlock=-1;
+
+for(let i=0;i<blocks.length;i++){
+const b=blocks[i];
+if(pos.x>=b.x && pos.x<=b.x+b.w && pos.y>=b.y && pos.y<=b.y+b.h){
+selectedBlock=i;
+}
+}
+
+updateUI();
+draw();
+
+});
+
+/* ================= ZOOM ================= */
+
+canvas.addEventListener("wheel",(e)=>{
+
+e.preventDefault();
+
+scale*=e.deltaY<0?1.1:0.9;
+scale=Math.max(0.2,Math.min(100,scale));
+
+draw();
+
+},{passive:false});
+
+/* ================= TOUCH ================= */
+
+let pinchStartDist=0;
+let pinchStartScale=scale;
+
+function dist(t1,t2){
+return Math.hypot(t1.clientX-t2.clientX,t1.clientY-t2.clientY);
+}
+
+canvas.addEventListener("touchstart",(e)=>{
+
+if(e.target!==canvas) return;
+
+const t=e.touches[0];
+const pos=getPointerPos(t);
+
+if(e.touches.length===1){
+
+if(admin){
+selectStart={x:pos.x,y:pos.y};
+selectEnd={...selectStart};
+draw();
+return;
+}
+
+dragging=true;
+dragX=t.clientX;
+dragY=t.clientY;
+
+}
+
+if(e.touches.length===2){
+pinchStartDist=dist(e.touches[0],e.touches[1]);
+pinchStartScale=scale;
+dragging=false;
+}
+
+},{passive:true});
+
+canvas.addEventListener("touchmove",(e)=>{
+
+if(e.target!==canvas) return;
+
+const t=e.touches[0];
+const pos=getPointerPos(t);
+
+if(e.touches.length===1){
+
+if(admin && selectStart){
+selectEnd={x:pos.x,y:pos.y};
+draw();
+return;
+}
+
+if(dragging){
+offsetX+=t.clientX-dragX;
+offsetY+=t.clientY-dragY;
+dragX=t.clientX;
+dragY=t.clientY;
+draw();
+}
+
+}
+
+if(e.touches.length===2){
+
+const d=dist(e.touches[0],e.touches[1]);
+
+scale=pinchStartScale*(d/pinchStartDist);
+scale=Math.max(0.2,Math.min(100,scale));
+
+draw();
+
+}
+
+},{passive:true});
+
+canvas.addEventListener("touchend",()=>{
+
+dragging=false;
+
+if(admin && selectStart && selectEnd){
+setTimeout(()=>imageInput.click(),50);
+}
+
+},{passive:true});
 
 /* ================= UPLOAD ================= */
 
@@ -401,14 +511,16 @@ if(!file||!selectStart||!selectEnd)return;
 
 const form=new FormData();
 form.append("file",file);
-form.append("upload_preset","pixelwall");
+form.append("upload_preset",UPLOAD_PRESET);
 
 const res=await fetch(
-"https://api.cloudinary.com/v1_1/dkwijnvsl/image/upload",
+`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,
 {method:"POST",body:form}
 );
 
 const data=await res.json();
+
+if(!data.secure_url)return;
 
 let x1=selectStart.x;
 let y1=selectStart.y;
@@ -427,13 +539,14 @@ h:(y2-y1)+CELL
 });
 
 saveCloud();
-
+clearSelection();
 draw();
 
 };
 
 /* ================= INIT ================= */
 
+centerWorld();
 draw();
 
 </script>
