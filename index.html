@@ -2,9 +2,9 @@
 <html lang="it">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 
-<title>Pixel Engine PRO</title>
+<title>Pixel Wall Stable</title>
 
 <style>
 
@@ -12,25 +12,24 @@ body{
 margin:0;
 overflow:hidden;
 background:#111;
-font-family:Arial;
+}
+
+canvas{
+display:block;
+touch-action:none;
 }
 
 #ui{
 position:fixed;
 top:10px;
 left:10px;
-z-index:9999;
-background:#1b1b1b;
+background:#222;
 color:#fff;
-padding:10px;
-border-radius:10px;
+padding:8px;
+border-radius:8px;
+font-family:Arial;
 font-size:14px;
-}
-
-canvas{
-display:block;
-touch-action:none;
-image-rendering:pixelated;
+z-index:10;
 }
 
 </style>
@@ -38,7 +37,7 @@ image-rendering:pixelated;
 
 <body>
 
-<div id="ui">Pixel Engine PRO</div>
+<div id="ui">Pixel Wall Stable</div>
 <canvas id="canvas"></canvas>
 
 <script>
@@ -51,19 +50,14 @@ canvas.height=innerHeight;
 
 /* ================= WORLD ================= */
 
-const WORLD_W=5000;
-const WORLD_H=5000;
+const WORLD_W=3000;
+const WORLD_H=3000;
 
-/* chunk size (base performance system) */
-const CHUNK=100;
-
-/* ================= VIEW ================= */
+/* ================= STATE ================= */
 
 let scale=1;
 let offsetX=0;
 let offsetY=0;
-
-/* ================= INPUT ================= */
 
 let dragging=false;
 let lastX=0;
@@ -73,55 +67,54 @@ let lastY=0;
 
 let blocks=[];
 
-/* multi selection */
+/* selection */
 let selection=null;
 let selected=[];
 
-/* ================= VIEWPORT ================= */
+/* ================= INIT TEST DATA ================= */
 
-function getView(){
+for(let i=0;i<8000;i++){
 
-return {
-x1:(-offsetX)/scale,
-y1:(-offsetY)/scale,
-x2:(-offsetX+canvas.width)/scale,
-y2:(-offsetY+canvas.height)/scale
-};
+blocks.push({
+x:Math.random()*WORLD_W,
+y:Math.random()*WORLD_H,
+size:6,
+color:"#fff"
+});
 
 }
 
-/* ================= CHUNK SYSTEM ================= */
-
-function chunkKey(x,y){
-return Math.floor(x/CHUNK)+"_"+Math.floor(y/CHUNK);
-}
-
-/* ================= DRAW (OPTIMIZED) ================= */
+/* ================= VIEW ================= */
 
 function draw(){
 
 ctx.clearRect(0,0,canvas.width,canvas.height);
 
 ctx.save();
+
 ctx.translate(offsetX,offsetY);
 ctx.scale(scale,scale);
 
-const v=getView();
+/* VIEWPORT */
+const view={
+x1:(-offsetX)/scale,
+y1:(-offsetY)/scale,
+x2:(-offsetX+canvas.width)/scale,
+y2:(-offsetY+canvas.height)/scale
+};
 
-/* ONLY VISIBLE BLOCKS */
+/* BLOCKS (SAFE CULLING) */
 for(let i=0;i<blocks.length;i++){
 
 const b=blocks[i];
 
-/* CULLING (core performance boost) */
 if(
-b.x+b.size < v.x1 ||
-b.x > v.x2 ||
-b.y+b.size < v.y1 ||
-b.y > v.y2
+b.x+b.size<view.x1 ||
+b.x>view.x2 ||
+b.y+b.size<view.y1 ||
+b.y>view.y2
 ) continue;
 
-/* draw */
 ctx.fillStyle=b.color;
 ctx.fillRect(b.x,b.y,b.size,b.size);
 
@@ -142,7 +135,7 @@ selection.h
 
 }
 
-/* selected blocks */
+/* selected */
 for(let i=0;i<selected.length;i++){
 
 const b=selected[i];
@@ -156,7 +149,7 @@ ctx.restore();
 
 }
 
-/* ================= INPUT ================= */
+/* ================= PAN ================= */
 
 canvas.addEventListener("mousedown",(e)=>{
 
@@ -178,17 +171,6 @@ selected=[];
 
 canvas.addEventListener("mousemove",(e)=>{
 
-/* PAN */
-if(dragging && !selection){
-offsetX+=e.clientX-lastX;
-offsetY+=e.clientY-lastY;
-lastX=e.clientX;
-lastY=e.clientY;
-draw();
-return;
-}
-
-/* SELECTION */
 if(dragging && selection){
 
 let x=(e.clientX-offsetX)/scale;
@@ -198,16 +180,27 @@ selection.w=x-selection.x;
 selection.h=y-selection.y;
 
 draw();
+return;
+}
+
+if(dragging){
+
+offsetX+=e.clientX-lastX;
+offsetY+=e.clientY-lastY;
+
+lastX=e.clientX;
+lastY=e.clientY;
+
+draw();
 }
 
 });
 
-/* END DRAG */
 canvas.addEventListener("mouseup",()=>{
 
 dragging=false;
 
-/* normalize selection */
+/* finalize selection */
 if(selection){
 
 let x1=selection.x;
@@ -218,7 +211,6 @@ let y2=y1+selection.h;
 if(x2<x1)[x1,x2]=[x2,x1];
 if(y2<y1)[y1,y2]=[y2,y1];
 
-/* MULTI SELECT */
 selected=blocks.filter(b=>
 b.x>=x1 &&
 b.x<=x2 &&
@@ -242,25 +234,11 @@ e.preventDefault();
 const zoom=e.deltaY<0?1.1:0.9;
 
 scale*=zoom;
-scale=Math.max(0.1,Math.min(100,scale));
+scale=Math.max(0.2,Math.min(50,scale));
 
 draw();
 
 },{passive:false});
-
-/* ================= TEST DATA ================= */
-
-/* simula MILIONI DI PIXEL */
-for(let i=0;i<20000;i++){
-
-blocks.push({
-x:Math.random()*WORLD_W,
-y:Math.random()*WORLD_H,
-size:5,
-color:"white"
-});
-
-}
 
 /* ================= INIT ================= */
 
