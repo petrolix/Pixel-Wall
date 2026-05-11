@@ -26,7 +26,7 @@ font-family:Arial;
 position:fixed;
 top:10px;
 left:10px;
-z-index:999;
+z-index:9999;
 display:flex;
 gap:10px;
 align-items:center;
@@ -34,6 +34,7 @@ background:#1b1b1b;
 padding:10px;
 border-radius:10px;
 border:1px solid #333;
+touch-action:auto;
 }
 
 button{
@@ -43,6 +44,7 @@ border:1px solid #444;
 padding:8px 12px;
 border-radius:8px;
 cursor:pointer;
+touch-action: manipulation;
 }
 
 button:hover{background:#333;}
@@ -56,8 +58,7 @@ canvas{
 display:block;
 cursor:grab;
 image-rendering: pixelated;
-touch-action: none;
-overscroll-behavior: none;
+touch-action:none;
 }
 
 canvas:active{
@@ -117,7 +118,7 @@ canvas.height = innerHeight;
 
 const WORLD_W = 1280;
 const WORLD_H = 720;
-const CELL = 1;   // 🔥 OBBLIGATORIO COME RICHIESTO
+const CELL = 1;
 
 /* ================= STATE ================= */
 
@@ -144,15 +145,15 @@ let blocks = [];
 
 const imageCache = {};
 
-/* ================= POINTER FIX (IPHONE) ================= */
+/* ================= POINTER ================= */
 
 function getPointerPos(e){
 
 const rect = canvas.getBoundingClientRect();
 
 return {
-x: (e.clientX - rect.left - offsetX) / scale,
-y: (e.clientY - rect.top - offsetY) / scale
+x:(e.clientX - rect.left - offsetX) / scale,
+y:(e.clientY - rect.top - offsetY) / scale
 };
 
 }
@@ -204,15 +205,13 @@ function draw(){
 ctx.clearRect(0,0,canvas.width,canvas.height);
 
 ctx.save();
-
 ctx.translate(offsetX,offsetY);
 ctx.scale(scale,scale);
 
-/* background */
 ctx.fillStyle="#151515";
 ctx.fillRect(0,0,WORLD_W,WORLD_H);
 
-/* GRID (solo zoom alto) */
+/* grid */
 if(scale >= 12){
 
 ctx.strokeStyle="#222";
@@ -234,24 +233,24 @@ ctx.stroke();
 
 }
 
-/* BLOCKS */
+/* blocks */
 for(let i=0;i<blocks.length;i++){
 
-const b = blocks[i];
+const b=blocks[i];
 
-let img = imageCache[b.img];
+let img=imageCache[b.img];
 
 if(!img){
-img = new Image();
-img.src = b.img;
-imageCache[b.img] = img;
+img=new Image();
+img.src=b.img;
+imageCache[b.img]=img;
 }
 
-if(img && img.complete && img.naturalWidth){
+if(img && img.complete){
 ctx.drawImage(img,b.x,b.y,b.w,b.h);
 }
 
-if(i === selectedBlock){
+if(i===selectedBlock){
 ctx.strokeStyle="red";
 ctx.lineWidth=3/scale;
 ctx.strokeRect(b.x,b.y,b.w,b.h);
@@ -259,19 +258,19 @@ ctx.strokeRect(b.x,b.y,b.w,b.h);
 
 }
 
-/* SELECTION */
+/* selection */
 if(admin && selectStart && selectEnd){
 
-let x1 = snap(selectStart.x);
-let y1 = snap(selectStart.y);
-let x2 = snap(selectEnd.x);
-let y2 = snap(selectEnd.y);
+let x1=snap(selectStart.x);
+let y1=snap(selectStart.y);
+let x2=snap(selectEnd.x);
+let y2=snap(selectEnd.y);
 
-if(x2 < x1)[x1,x2]=[x2,x1];
-if(y2 < y1)[y1,y2]=[y2,y1];
+if(x2<x1)[x1,x2]=[x2,x1];
+if(y2<y1)[y1,y2]=[y2,y1];
 
-const w = (x2-x1)+CELL;
-const h = (y2-y1)+CELL;
+const w=(x2-x1)+CELL;
+const h=(y2-y1)+CELL;
 
 ctx.fillStyle="rgba(0,150,255,0.25)";
 ctx.strokeStyle="#00a8ff";
@@ -291,13 +290,13 @@ info.innerText =
 
 /* ================= ADMIN ================= */
 
-adminBtn.onclick = ()=>{
+adminBtn.onclick=()=>{
 
-const p = prompt("Password admin");
+const p=prompt("Password admin");
 
-if(p === "admin123"){
-admin = !admin;
-adminBtn.innerText = admin ? "Admin ON" : "Admin OFF";
+if(p==="admin123"){
+admin=!admin;
+adminBtn.innerText=admin?"Admin ON":"Admin OFF";
 clearSelection();
 draw();
 }
@@ -306,9 +305,9 @@ draw();
 
 /* ================= REMOVE ================= */
 
-removeBtn.onclick = ()=>{
+removeBtn.onclick=()=>{
 
-if(selectedBlock >= 0){
+if(selectedBlock>=0){
 blocks.splice(selectedBlock,1);
 saveCloud();
 clearSelection();
@@ -319,9 +318,9 @@ draw();
 
 /* ================= RESET ================= */
 
-resetBtn.onclick = ()=>{
+resetBtn.onclick=()=>{
 
-scale = 4;
+scale=4;
 centerWorld();
 clearSelection();
 draw();
@@ -332,7 +331,7 @@ draw();
 
 canvas.addEventListener("mousedown",(e)=>{
 
-const pos = getPointerPos(e);
+const pos=getPointerPos(e);
 
 if(admin){
 selectStart={x:pos.x,y:pos.y};
@@ -349,7 +348,7 @@ dragY=e.clientY;
 
 canvas.addEventListener("mousemove",(e)=>{
 
-const pos = getPointerPos(e);
+const pos=getPointerPos(e);
 
 if(admin && selectStart){
 selectEnd={x:pos.x,y:pos.y};
@@ -369,19 +368,25 @@ draw();
 
 canvas.addEventListener("mouseup",()=>{
 
+dragging=false;
+
 if(admin && selectStart && selectEnd){
 setTimeout(()=>imageInput.click(),50);
 }
 
-dragging=false;
+});
 
+/* ================= CLICK UI FIX ================= */
+
+document.getElementById("toolbar").addEventListener("click",(e)=>{
+e.stopPropagation();
 });
 
 /* ================= CLICK ================= */
 
 canvas.addEventListener("click",(e)=>{
 
-const pos = getPointerPos(e);
+const pos=getPointerPos(e);
 
 selectedBlock=-1;
 
@@ -403,33 +408,30 @@ canvas.addEventListener("wheel",(e)=>{
 
 e.preventDefault();
 
-scale *= e.deltaY<0?1.1:0.9;
+scale*=e.deltaY<0?1.1:0.9;
 scale=Math.max(0.2,Math.min(100,scale));
 
 draw();
 
 },{passive:false});
 
-/* ================= TOUCH IPHONE FIX ================= */
+/* ================= TOUCH ================= */
 
 let pinchStartDist=0;
 let pinchStartScale=scale;
 
 function dist(t1,t2){
-return Math.hypot(
-t1.clientX-t2.clientX,
-t1.clientY-t2.clientY
-);
+return Math.hypot(t1.clientX-t2.clientX,t1.clientY-t2.clientY);
 }
 
 canvas.addEventListener("touchstart",(e)=>{
 
-e.preventDefault();
-
-if(e.touches.length===1){
+if(e.target!==canvas) return;
 
 const t=e.touches[0];
-const pos = getPointerPos(t);
+const pos=getPointerPos(t);
+
+if(e.touches.length===1){
 
 if(admin){
 selectStart={x:pos.x,y:pos.y};
@@ -450,16 +452,16 @@ pinchStartScale=scale;
 dragging=false;
 }
 
-},{passive:false});
+},{passive:true});
 
 canvas.addEventListener("touchmove",(e)=>{
 
-e.preventDefault();
-
-if(e.touches.length===1){
+if(e.target!==canvas) return;
 
 const t=e.touches[0];
 const pos=getPointerPos(t);
+
+if(e.touches.length===1){
 
 if(admin && selectStart){
 selectEnd={x:pos.x,y:pos.y};
@@ -488,11 +490,9 @@ draw();
 
 }
 
-},{passive:false});
+},{passive:true});
 
-canvas.addEventListener("touchend",(e)=>{
-
-e.preventDefault();
+canvas.addEventListener("touchend",()=>{
 
 dragging=false;
 
@@ -500,11 +500,11 @@ if(admin && selectStart && selectEnd){
 setTimeout(()=>imageInput.click(),50);
 }
 
-},{passive:false});
+},{passive:true});
 
 /* ================= UPLOAD ================= */
 
-imageInput.onchange = async (e)=>{
+imageInput.onchange=async(e)=>{
 
 const file=e.target.files[0];
 if(!file||!selectStart||!selectEnd)return;
