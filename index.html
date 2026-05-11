@@ -2,66 +2,35 @@
 <html lang="it">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
-<meta name="viewport"
-content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-
-<title>Pixel Wall</title>
+<title>Pixel Engine PRO</title>
 
 <style>
 
-*{
-margin:0;
-padding:0;
-box-sizing:border-box;
-}
-
 body{
+margin:0;
 overflow:hidden;
-background:#0f0f0f;
+background:#111;
 font-family:Arial;
 }
 
-#toolbar{
+#ui{
 position:fixed;
 top:10px;
 left:10px;
 z-index:9999;
-display:flex;
-gap:10px;
-align-items:center;
 background:#1b1b1b;
+color:#fff;
 padding:10px;
 border-radius:10px;
-border:1px solid #333;
-}
-
-button{
-background:#222;
-color:#fff;
-border:1px solid #444;
-padding:8px 12px;
-border-radius:8px;
-cursor:pointer;
-touch-action: manipulation;
-}
-
-button:hover{background:#333;}
-
-#info{
-color:#fff;
 font-size:14px;
 }
 
 canvas{
 display:block;
-cursor:grab;
-image-rendering: pixelated;
 touch-action:none;
-}
-
-canvas:active{
-cursor:grabbing;
+image-rendering:pixelated;
 }
 
 </style>
@@ -69,335 +38,197 @@ cursor:grabbing;
 
 <body>
 
-<div id="toolbar">
-<button id="adminBtn">Admin</button>
-<button id="removeBtn" style="display:none;">Rimuovi</button>
-<button id="resetBtn">Reset</button>
-<div id="info"></div>
-</div>
-
-<input type="file" id="imageInput" accept="image/*" hidden>
+<div id="ui">Pixel Engine PRO</div>
 <canvas id="canvas"></canvas>
-
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 
 <script>
 
-/* ================= FIREBASE ================= */
+const canvas=document.getElementById("canvas");
+const ctx=canvas.getContext("2d");
 
-const firebaseConfig = {
-apiKey: "AIzaSyDFPiQn3Uq7_OA0e7UxNoeze8z_EfndwsU",
-authDomain: "pixel-wall-ff621.firebaseapp.com",
-projectId: "pixel-wall-ff621",
-storageBucket: "pixel-wall-ff621.firebasestorage.app",
-messagingSenderId: "623723716677",
-appId: "1:623723716677:web:4c22d403e1251ef0e9432c"
-};
-
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
-
-/* ================= CLOUDINARY ================= */
-
-const CLOUD_NAME = "dkwijnvsl";
-const UPLOAD_PRESET = "pixelwall";
-
-/* ================= CANVAS ================= */
-
-const canvas = document.getElementById("canvas");
-const ctx = canvas.getContext("2d");
-
-ctx.imageSmoothingEnabled = false;
-
-canvas.width = innerWidth;
-canvas.height = innerHeight;
+canvas.width=innerWidth;
+canvas.height=innerHeight;
 
 /* ================= WORLD ================= */
 
-const WORLD_W = 1280;
-const WORLD_H = 720;
-const CELL = 1;
+const WORLD_W=5000;
+const WORLD_H=5000;
 
-/* ================= STATE ================= */
+/* chunk size (base performance system) */
+const CHUNK=100;
 
-let scale = 1;   // 🔥 FIX: 100% START
+/* ================= VIEW ================= */
 
-let offsetX = 0;
-let offsetY = 0;
+let scale=1;
+let offsetX=0;
+let offsetY=0;
 
-let dragging = false;
+/* ================= INPUT ================= */
 
-let dragX = 0;
-let dragY = 0;
+let dragging=false;
+let lastX=0;
+let lastY=0;
 
-let admin = false;
+/* ================= DATA ================= */
 
-let selectStart = null;
-let selectEnd = null;
+let blocks=[];
 
-let selectedBlock = -1;
+/* multi selection */
+let selection=null;
+let selected=[];
 
-let blocks = [];
+/* ================= VIEWPORT ================= */
 
-/* ================= CACHE ================= */
-
-const imageCache = {};
-
-/* ================= POINTER ================= */
-
-function getPointerPos(e){
-
-const rect = canvas.getBoundingClientRect();
+function getView(){
 
 return {
-x: (e.clientX - rect.left - offsetX) / scale,
-y: (e.clientY - rect.top - offsetY) / scale
+x1:(-offsetX)/scale,
+y1:(-offsetY)/scale,
+x2:(-offsetX+canvas.width)/scale,
+y2:(-offsetY+canvas.height)/scale
 };
 
 }
 
-/* ================= HELPERS ================= */
+/* ================= CHUNK SYSTEM ================= */
 
-function snap(v){
-return Math.floor(v / CELL) * CELL;
+function chunkKey(x,y){
+return Math.floor(x/CHUNK)+"_"+Math.floor(y/CHUNK);
 }
 
-function centerWorld(){
-offsetX = (canvas.width - WORLD_W * scale) / 2;
-offsetY = (canvas.height - WORLD_H * scale) / 2;
-}
-
-function updateUI(){
-removeBtn.style.display =
-(admin && selectedBlock >= 0) ? "inline-block" : "none";
-}
-
-function clearSelection(){
-selectStart = null;
-selectEnd = null;
-selectedBlock = -1;
-updateUI();
-}
-
-/* ================= FIREBASE ================= */
-
-db.collection("pixelwall")
-.doc("main")
-.onSnapshot((doc)=>{
-blocks = doc.data()?.blocks || [];
-requestAnimationFrame(draw);
-});
-
-/* ================= SAVE ================= */
-
-function saveCloud(){
-db.collection("pixelwall")
-.doc("main")
-.set({blocks});
-}
-
-/* ================= DRAW ================= */
+/* ================= DRAW (OPTIMIZED) ================= */
 
 function draw(){
 
 ctx.clearRect(0,0,canvas.width,canvas.height);
 
 ctx.save();
-
 ctx.translate(offsetX,offsetY);
 ctx.scale(scale,scale);
 
-ctx.fillStyle="#151515";
-ctx.fillRect(0,0,WORLD_W,WORLD_H);
+const v=getView();
 
-/* GRID */
-if(scale >= 12){
-
-ctx.strokeStyle="#222";
-ctx.lineWidth=1/scale;
-
-for(let x=0;x<=WORLD_W;x++){
-ctx.beginPath();
-ctx.moveTo(x,0);
-ctx.lineTo(x,WORLD_H);
-ctx.stroke();
-}
-
-for(let y=0;y<=WORLD_H;y++){
-ctx.beginPath();
-ctx.moveTo(0,y);
-ctx.lineTo(WORLD_W,y);
-ctx.stroke();
-}
-
-}
-
-/* BLOCKS */
+/* ONLY VISIBLE BLOCKS */
 for(let i=0;i<blocks.length;i++){
 
-const b = blocks[i];
+const b=blocks[i];
 
-let img = imageCache[b.img];
+/* CULLING (core performance boost) */
+if(
+b.x+b.size < v.x1 ||
+b.x > v.x2 ||
+b.y+b.size < v.y1 ||
+b.y > v.y2
+) continue;
 
-if(!img){
-img = new Image();
-img.src = b.img;
-imageCache[b.img]=img;
+/* draw */
+ctx.fillStyle=b.color;
+ctx.fillRect(b.x,b.y,b.size,b.size);
+
 }
 
-if(img && img.complete){
-ctx.drawImage(
-img,
-Math.round(b.x),
-Math.round(b.y),
-Math.round(b.w),
-Math.round(b.h)
+/* selection box */
+if(selection){
+
+ctx.strokeStyle="cyan";
+ctx.lineWidth=1/scale;
+
+ctx.strokeRect(
+selection.x,
+selection.y,
+selection.w,
+selection.h
 );
+
 }
 
-if(i === selectedBlock){
+/* selected blocks */
+for(let i=0;i<selected.length;i++){
+
+const b=selected[i];
+
 ctx.strokeStyle="red";
-ctx.lineWidth=3/scale;
-ctx.strokeRect(b.x,b.y,b.w,b.h);
-}
-
-}
-
-/* SELECTION */
-if(admin && selectStart && selectEnd){
-
-let x1 = snap(selectStart.x);
-let y1 = snap(selectStart.y);
-let x2 = snap(selectEnd.x);
-let y2 = snap(selectEnd.y);
-
-if(x2 < x1)[x1,x2]=[x2,x1];
-if(y2 < y1)[y1,y2]=[y2,y1];
-
-const w = (x2-x1)+CELL;
-const h = (y2-y1)+CELL;
-
-ctx.fillStyle="rgba(0,150,255,0.25)";
-ctx.strokeStyle="#00a8ff";
-ctx.lineWidth=2/scale;
-
-ctx.fillRect(x1,y1,w,h);
-ctx.strokeRect(x1,y1,w,h);
+ctx.strokeRect(b.x,b.y,b.size,b.size);
 
 }
 
 ctx.restore();
 
-info.innerText =
-`Zoom ${(scale*100).toFixed(0)}% | Blocchi ${blocks.length}`;
-
 }
 
-/* ================= ADMIN ================= */
-
-adminBtn.onclick=()=>{
-
-const p=prompt("Password admin");
-
-if(p==="admin123"){
-admin=!admin;
-adminBtn.innerText=admin?"Admin ON":"Admin OFF";
-clearSelection();
-draw();
-}
-
-};
-
-/* ================= REMOVE ================= */
-
-removeBtn.onclick=()=>{
-
-if(selectedBlock>=0){
-blocks.splice(selectedBlock,1);
-saveCloud();
-clearSelection();
-draw();
-}
-
-};
-
-/* ================= RESET ================= */
-
-resetBtn.onclick=()=>{
-
-scale=1;
-centerWorld();
-clearSelection();
-draw();
-
-};
-
-/* ================= MOUSE ================= */
+/* ================= INPUT ================= */
 
 canvas.addEventListener("mousedown",(e)=>{
 
-const pos=getPointerPos(e);
-
-if(admin){
-selectStart={x:pos.x,y:pos.y};
-selectEnd={...selectStart};
-draw();
-return;
-}
-
 dragging=true;
-dragX=e.clientX;
-dragY=e.clientY;
+lastX=e.clientX;
+lastY=e.clientY;
+
+/* start selection */
+selection={
+x:(e.clientX-offsetX)/scale,
+y:(e.clientY-offsetY)/scale,
+w:0,
+h:0
+};
+
+selected=[];
 
 });
 
 canvas.addEventListener("mousemove",(e)=>{
 
-const pos=getPointerPos(e);
-
-if(admin && selectStart){
-selectEnd={x:pos.x,y:pos.y};
+/* PAN */
+if(dragging && !selection){
+offsetX+=e.clientX-lastX;
+offsetY+=e.clientY-lastY;
+lastX=e.clientX;
+lastY=e.clientY;
 draw();
 return;
 }
 
-if(dragging){
-offsetX+=e.clientX-dragX;
-offsetY+=e.clientY-dragY;
-dragX=e.clientX;
-dragY=e.clientY;
+/* SELECTION */
+if(dragging && selection){
+
+let x=(e.clientX-offsetX)/scale;
+let y=(e.clientY-offsetY)/scale;
+
+selection.w=x-selection.x;
+selection.h=y-selection.y;
+
 draw();
 }
 
 });
 
+/* END DRAG */
 canvas.addEventListener("mouseup",()=>{
 
 dragging=false;
 
-if(admin && selectStart && selectEnd){
-setTimeout(()=>imageInput.click(),50);
+/* normalize selection */
+if(selection){
+
+let x1=selection.x;
+let y1=selection.y;
+let x2=x1+selection.w;
+let y2=y1+selection.h;
+
+if(x2<x1)[x1,x2]=[x2,x1];
+if(y2<y1)[y1,y2]=[y2,y1];
+
+/* MULTI SELECT */
+selected=blocks.filter(b=>
+b.x>=x1 &&
+b.x<=x2 &&
+b.y>=y1 &&
+b.y<=y2
+);
+
 }
 
-});
-
-/* ================= CLICK ================= */
-
-canvas.addEventListener("click",(e)=>{
-
-const pos=getPointerPos(e);
-
-selectedBlock=-1;
-
-for(let i=0;i<blocks.length;i++){
-const b=blocks[i];
-if(pos.x>=b.x && pos.x<=b.x+b.w && pos.y>=b.y && pos.y<=b.y+b.h){
-selectedBlock=i;
-}
-}
-
-updateUI();
+selection=null;
 draw();
 
 });
@@ -408,145 +239,31 @@ canvas.addEventListener("wheel",(e)=>{
 
 e.preventDefault();
 
-scale*=e.deltaY<0?1.1:0.9;
-scale=Math.max(0.2,Math.min(100,scale));
+const zoom=e.deltaY<0?1.1:0.9;
+
+scale*=zoom;
+scale=Math.max(0.1,Math.min(100,scale));
 
 draw();
 
 },{passive:false});
 
-/* ================= TOUCH ================= */
+/* ================= TEST DATA ================= */
 
-let pinchStartDist=0;
-let pinchStartScale=scale;
-
-function dist(t1,t2){
-return Math.hypot(t1.clientX-t2.clientX,t1.clientY-t2.clientY);
-}
-
-canvas.addEventListener("touchstart",(e)=>{
-
-if(e.target!==canvas) return;
-
-const t=e.touches[0];
-const pos=getPointerPos(t);
-
-if(e.touches.length===1){
-
-if(admin){
-selectStart={x:pos.x,y:pos.y};
-selectEnd={...selectStart};
-draw();
-return;
-}
-
-dragging=true;
-dragX=t.clientX;
-dragY=t.clientY;
-
-}
-
-if(e.touches.length===2){
-pinchStartDist=dist(e.touches[0],e.touches[1]);
-pinchStartScale=scale;
-dragging=false;
-}
-
-},{passive:true});
-
-canvas.addEventListener("touchmove",(e)=>{
-
-if(e.target!==canvas) return;
-
-const t=e.touches[0];
-const pos=getPointerPos(t);
-
-if(e.touches.length===1){
-
-if(admin && selectStart){
-selectEnd={x:pos.x,y:pos.y};
-draw();
-return;
-}
-
-if(dragging){
-offsetX+=t.clientX-dragX;
-offsetY+=t.clientY-dragY;
-dragX=t.clientX;
-dragY=t.clientY;
-draw();
-}
-
-}
-
-if(e.touches.length===2){
-
-const d=dist(e.touches[0],e.touches[1]);
-
-scale=pinchStartScale*(d/pinchStartDist);
-scale=Math.max(0.2,Math.min(100,scale));
-
-draw();
-
-}
-
-},{passive:true});
-
-canvas.addEventListener("touchend",()=>{
-
-dragging=false;
-
-if(admin && selectStart && selectEnd){
-setTimeout(()=>imageInput.click(),50);
-}
-
-},{passive:true});
-
-/* ================= UPLOAD ================= */
-
-imageInput.onchange=async(e)=>{
-
-const file=e.target.files[0];
-if(!file||!selectStart||!selectEnd)return;
-
-const form=new FormData();
-form.append("file",file);
-form.append("upload_preset",UPLOAD_PRESET);
-
-const res=await fetch(
-`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,
-{method:"POST",body:form}
-);
-
-const data=await res.json();
-
-if(!data.secure_url)return;
-
-let x1=selectStart.x;
-let y1=selectStart.y;
-let x2=selectEnd.x;
-let y2=selectEnd.y;
-
-if(x2<x1)[x1,x2]=[x2,x1];
-if(y2<y1)[y1,y2]=[y2,y1];
+/* simula MILIONI DI PIXEL */
+for(let i=0;i<20000;i++){
 
 blocks.push({
-img:data.secure_url,
-x:x1,
-y:y1,
-w:(x2-x1)+CELL,
-h:(y2-y1)+CELL
+x:Math.random()*WORLD_W,
+y:Math.random()*WORLD_H,
+size:5,
+color:"white"
 });
 
-saveCloud();
-clearSelection();
-draw();
-
-};
+}
 
 /* ================= INIT ================= */
 
-centerWorld();
 draw();
 
 </script>
