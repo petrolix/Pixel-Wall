@@ -6,6 +6,7 @@
 <title>Pixel Wall</title>
 
 <style>
+
 *{
 margin:0;
 padding:0;
@@ -41,7 +42,9 @@ border-radius:8px;
 cursor:pointer;
 }
 
-button:hover{background:#333;}
+button:hover{
+background:#333;
+}
 
 #info{
 color:#fff;
@@ -51,26 +54,46 @@ font-size:14px;
 canvas{
 display:block;
 cursor:grab;
+image-rendering: pixelated;
 }
 
 canvas:active{
 cursor:grabbing;
 }
+
 </style>
 </head>
 
 <body>
 
 <div id="toolbar">
-<button id="adminBtn">Admin</button>
-<button id="removeBtn" style="display:none;">Rimuovi</button>
-<button id="resetBtn">Reset</button>
+
+<button id="adminBtn">
+Admin
+</button>
+
+<button id="removeBtn" style="display:none;">
+Rimuovi
+</button>
+
+<button id="resetBtn">
+Reset
+</button>
+
 <div id="info"></div>
+
 </div>
 
-<input type="file" id="imageInput" accept="image/*" hidden>
+<input
+type="file"
+id="imageInput"
+accept="image/*"
+hidden
+>
+
 <canvas id="canvas"></canvas>
 
+<!-- FIREBASE -->
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 
@@ -79,15 +102,18 @@ cursor:grabbing;
 /* ================= FIREBASE ================= */
 
 const firebaseConfig = {
+
 apiKey: "AIzaSyDFPiQn3Uq7_OA0e7UxNoeze8z_EfndwsU",
 authDomain: "pixel-wall-ff621.firebaseapp.com",
 projectId: "pixel-wall-ff621",
 storageBucket: "pixel-wall-ff621.firebasestorage.app",
 messagingSenderId: "623723716677",
 appId: "1:623723716677:web:4c22d403e1251ef0e9432c"
+
 };
 
 firebase.initializeApp(firebaseConfig);
+
 const db = firebase.firestore();
 
 /* ================= CLOUDINARY ================= */
@@ -97,33 +123,35 @@ const UPLOAD_PRESET = "pixelwall";
 
 /* ================= CANVAS ================= */
 
-const canvas = document.getElementById("canvas");
-const ctx = canvas.getContext("2d");
+const canvas = document.getElementById('canvas');
+
+const ctx = canvas.getContext('2d');
+
+/* PIXEL PERFECT */
+
+ctx.imageSmoothingEnabled = false;
 
 canvas.width = innerWidth;
 canvas.height = innerHeight;
-
-/* ================= DOM ================= */
-
-const adminBtn = document.getElementById("adminBtn");
-const removeBtn = document.getElementById("removeBtn");
-const resetBtn = document.getElementById("resetBtn");
-const imageInput = document.getElementById("imageInput");
-const info = document.getElementById("info");
 
 /* ================= WORLD ================= */
 
 const WORLD_W = 1280;
 const WORLD_H = 720;
+
+/* 1280 x 720 = 921600 quadratini */
+
 const CELL = 1;
 
 /* ================= STATE ================= */
 
 let scale = 1;
+
 let offsetX = 0;
 let offsetY = 0;
 
 let dragging = false;
+
 let dragX = 0;
 let dragY = 0;
 
@@ -140,30 +168,53 @@ let blocks = [];
 
 const imageCache = {};
 
+/* ================= ELEMENTS ================= */
+
+const adminBtn = document.getElementById('adminBtn');
+const removeBtn = document.getElementById('removeBtn');
+const resetBtn = document.getElementById('resetBtn');
+const imageInput = document.getElementById('imageInput');
+const info = document.getElementById('info');
+
 /* ================= HELPERS ================= */
 
 function snap(v){
+
 return Math.floor(v / CELL) * CELL;
+
 }
 
 function centerWorld(){
-offsetX = (canvas.width - WORLD_W * scale) / 2;
-offsetY = (canvas.height - WORLD_H * scale) / 2;
+
+offsetX =
+(canvas.width - WORLD_W * scale) / 2;
+
+offsetY =
+(canvas.height - WORLD_H * scale) / 2;
+
 }
 
 function updateUI(){
+
 removeBtn.style.display =
-(admin && selectedBlock >= 0) ? "inline-block" : "none";
+(admin && selectedBlock >= 0)
+? "inline-block"
+: "none";
+
 }
 
 function clearSelection(){
+
 selectStart = null;
 selectEnd = null;
+
 selectedBlock = -1;
+
 updateUI();
+
 }
 
-/* ================= FIREBASE ================= */
+/* ================= FIREBASE LOAD ================= */
 
 db.collection("pixelwall")
 .doc("main")
@@ -175,92 +226,207 @@ requestAnimationFrame(draw);
 
 });
 
-/* ================= SAVE ================= */
+/* ================= FIREBASE SAVE ================= */
 
 function saveCloud(){
+
 db.collection("pixelwall")
 .doc("main")
-.set({blocks});
+.set({
+blocks
+});
+
 }
 
-/* ================= DRAW (FIX STABILE) ================= */
+/* ================= DRAW ================= */
 
 function draw(){
 
-ctx.clearRect(0,0,canvas.width,canvas.height);
+ctx.clearRect(
+0,
+0,
+canvas.width,
+canvas.height
+);
 
 ctx.save();
-ctx.translate(offsetX,offsetY);
-ctx.scale(scale,scale);
+
+ctx.translate(
+offsetX,
+offsetY
+);
+
+ctx.scale(
+scale,
+scale
+);
 
 /* background */
-ctx.fillStyle="#151515";
-ctx.fillRect(0,0,WORLD_W,WORLD_H);
 
-/* grid */
-ctx.strokeStyle="#222";
-ctx.lineWidth=1/scale;
+ctx.fillStyle = "#151515";
 
-for(let x=0;x<=WORLD_W;x+=CELL){
+ctx.fillRect(
+0,
+0,
+WORLD_W,
+WORLD_H
+);
+
+/* GRID SOLO A ZOOM ALTO */
+
+if(scale >= 12){
+
+ctx.strokeStyle = "#222";
+
+ctx.lineWidth = 1 / scale;
+
+for(
+let x=0;
+x<=WORLD_W;
+x+=CELL
+){
+
 ctx.beginPath();
+
 ctx.moveTo(x,0);
-ctx.lineTo(x,WORLD_H);
+
+ctx.lineTo(
+x,
+WORLD_H
+);
+
 ctx.stroke();
+
 }
 
-for(let y=0;y<=WORLD_H;y+=CELL){
+for(
+let y=0;
+y<=WORLD_H;
+y+=CELL
+){
+
 ctx.beginPath();
+
 ctx.moveTo(0,y);
-ctx.lineTo(WORLD_W,y);
+
+ctx.lineTo(
+WORLD_W,
+y
+);
+
 ctx.stroke();
+
 }
 
-/* blocks */
-for(let i=0;i<blocks.length;i++){
+}
+
+/* BLOCKS */
+
+for(
+let i=0;
+i<blocks.length;
+i++
+){
 
 const b = blocks[i];
 
 let img = imageCache[b.img];
 
 if(!img){
+
 img = new Image();
+
 img.src = b.img;
+
 imageCache[b.img] = img;
+
 }
 
-if(img && img.complete && img.naturalWidth !== 0){
-ctx.drawImage(img,b.x,b.y,b.w,b.h);
+/* SOLO IMMAGINI CARICATE */
+
+if(
+img &&
+img.complete &&
+img.naturalWidth !== 0
+){
+
+ctx.drawImage(
+img,
+b.x,
+b.y,
+b.w,
+b.h
+);
+
+}
+
+/* selected */
+
+if(i === selectedBlock){
+
+ctx.strokeStyle = "red";
+
+ctx.lineWidth = 3 / scale;
+
+ctx.strokeRect(
+b.x,
+b.y,
+b.w,
+b.h
+);
+
+}
+
 }
 
 /* selection */
-if(i === selectedBlock){
-ctx.strokeStyle="red";
-ctx.lineWidth=3/scale;
-ctx.strokeRect(b.x,b.y,b.w,b.h);
-}
 
-}
-
-/* selection box */
-if(admin && selectStart && selectEnd){
+if(
+admin &&
+selectStart &&
+selectEnd
+){
 
 let x1 = snap(selectStart.x);
 let y1 = snap(selectStart.y);
+
 let x2 = snap(selectEnd.x);
 let y2 = snap(selectEnd.y);
 
-if(x2 < x1)[x1,x2]=[x2,x1];
-if(y2 < y1)[y1,y2]=[y2,y1];
+if(x2 < x1)
+[x1, x2] = [x2, x1];
 
-const w = (x2-x1)+CELL;
-const h = (y2-y1)+CELL;
+if(y2 < y1)
+[y1, y2] = [y2, y1];
 
-ctx.fillStyle="rgba(0,150,255,0.25)";
-ctx.strokeStyle="#00a8ff";
-ctx.lineWidth=2/scale;
+const w =
+(x2 - x1) + CELL;
 
-ctx.fillRect(x1,y1,w,h);
-ctx.strokeRect(x1,y1,w,h);
+const h =
+(y2 - y1) + CELL;
+
+ctx.fillStyle =
+"rgba(0,150,255,0.25)";
+
+ctx.strokeStyle =
+"#00a8ff";
+
+ctx.lineWidth =
+2 / scale;
+
+ctx.fillRect(
+x1,
+y1,
+w,
+h
+);
+
+ctx.strokeRect(
+x1,
+y1,
+w,
+h
+);
 
 }
 
@@ -273,179 +439,382 @@ info.innerText =
 
 /* ================= ADMIN ================= */
 
-adminBtn.onclick = () => {
+adminBtn.onclick = ()=>{
 
-const p = prompt("Password admin");
+const p = prompt(
+"Password admin"
+);
 
 if(p === "admin123"){
+
 admin = !admin;
-adminBtn.innerText = admin ? "Admin ON" : "Admin OFF";
+
+adminBtn.innerText =
+admin
+? "Admin ON"
+: "Admin";
+
 clearSelection();
+
 draw();
+
+}
+
+};
+
+/* ================= REMOVE ================= */
+
+removeBtn.onclick = ()=>{
+
+if(selectedBlock >= 0){
+
+blocks.splice(
+selectedBlock,
+1
+);
+
+saveCloud();
+
+clearSelection();
+
+draw();
+
 }
 
 };
 
 /* ================= RESET ================= */
 
-resetBtn.onclick = () => {
+resetBtn.onclick = ()=>{
 
 scale = 1;
-offsetX = 0;
-offsetY = 0;
 
 centerWorld();
+
 clearSelection();
+
 draw();
 
 };
 
-/* ================= REMOVE ================= */
+/* ================= MOUSE DOWN ================= */
 
-removeBtn.onclick = () => {
+canvas.addEventListener(
+'mousedown',
+(e)=>{
 
-if(selectedBlock >= 0){
-blocks.splice(selectedBlock,1);
-saveCloud();
-clearSelection();
-draw();
-}
+const mx =
+(e.clientX - offsetX) / scale;
 
-};
+const my =
+(e.clientY - offsetY) / scale;
 
-/* ================= MOUSE ================= */
-
-canvas.addEventListener("mousedown",(e)=>{
-
-const mx = (e.clientX-offsetX)/scale;
-const my = (e.clientY-offsetY)/scale;
+/* ADMIN SELECT */
 
 if(admin){
-selectStart={x:mx,y:my};
-selectEnd={...selectStart};
+
+selectStart = {
+
+x:snap(mx),
+y:snap(my)
+
+};
+
+selectEnd = {
+...selectStart
+};
+
 draw();
+
 return;
+
 }
 
-dragging=true;
-dragX=e.clientX;
-dragY=e.clientY;
+/* PAN */
 
-});
+dragging = true;
 
-canvas.addEventListener("mousemove",(e)=>{
+dragX = e.clientX;
+dragY = e.clientY;
 
-const mx = (e.clientX-offsetX)/scale;
-const my = (e.clientY-offsetY)/scale;
-
-if(admin && selectStart){
-selectEnd={x:mx,y:my};
-draw();
-return;
 }
+);
+
+/* ================= MOUSE MOVE ================= */
+
+canvas.addEventListener(
+'mousemove',
+(e)=>{
+
+const mx =
+(e.clientX - offsetX) / scale;
+
+const my =
+(e.clientY - offsetY) / scale;
+
+/* selection */
+
+if(
+admin &&
+selectStart
+){
+
+selectEnd = {
+
+x:snap(mx),
+y:snap(my)
+
+};
+
+draw();
+
+return;
+
+}
+
+/* pan */
 
 if(dragging){
-offsetX+=e.clientX-dragX;
-offsetY+=e.clientY-dragY;
-dragX=e.clientX;
-dragY=e.clientY;
+
+offsetX +=
+e.clientX - dragX;
+
+offsetY +=
+e.clientY - dragY;
+
+dragX = e.clientX;
+dragY = e.clientY;
+
 draw();
+
 }
 
-});
+}
+);
 
-canvas.addEventListener("mouseup",()=>{
+/* ================= MOUSE UP ================= */
 
-if(admin && selectStart && selectEnd){
-setTimeout(()=>imageInput.click(),50);
+canvas.addEventListener(
+'mouseup',
+()=>{
+
+if(
+admin &&
+selectStart &&
+selectEnd
+){
+
+setTimeout(()=>{
+
+imageInput.click();
+
+},50);
+
 }
 
-dragging=false;
+dragging = false;
 
-});
+}
+);
 
 /* ================= CLICK ================= */
 
-canvas.addEventListener("click",(e)=>{
+canvas.addEventListener(
+'click',
+(e)=>{
 
-const mx = (e.clientX-offsetX)/scale;
-const my = (e.clientY-offsetY)/scale;
+const mx =
+(e.clientX - offsetX) / scale;
 
-selectedBlock=-1;
+const my =
+(e.clientY - offsetY) / scale;
 
-for(let i=0;i<blocks.length;i++){
-const b=blocks[i];
-if(mx>=b.x && mx<=b.x+b.w && my>=b.y && my<=b.y+b.h){
-selectedBlock=i;
+selectedBlock = -1;
+
+for(
+let i=0;
+i<blocks.length;
+i++
+){
+
+const b = blocks[i];
+
+if(
+
+mx >= b.x &&
+mx <= b.x + b.w &&
+my >= b.y &&
+my <= b.y + b.h
+
+){
+
+selectedBlock = i;
+
 }
+
 }
 
 updateUI();
+
 draw();
 
-});
+}
+);
 
 /* ================= ZOOM ================= */
 
-canvas.addEventListener("wheel",(e)=>{
+canvas.addEventListener(
+'wheel',
+(e)=>{
 
 e.preventDefault();
 
-scale *= e.deltaY<0?1.1:0.9;
-scale=Math.max(0.2,Math.min(30,scale));
+scale *=
+e.deltaY < 0
+? 1.1
+: 0.9;
 
-draw();
-
-},{passive:false});
-
-/* ================= UPLOAD ================= */
-
-imageInput.onchange = async (e)=>{
-
-const file=e.target.files[0];
-if(!file||!selectStart||!selectEnd)return;
-
-const form=new FormData();
-form.append("file",file);
-form.append("upload_preset",UPLOAD_PRESET);
-
-const res=await fetch(
-`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,
-{method:"POST",body:form}
+scale = Math.max(
+0.2,
+Math.min(100,scale)
 );
 
-const data=await res.json();
-
-if(!data.secure_url){
-alert("Errore upload");
-return;
-}
-
-let x1=snap(selectStart.x);
-let y1=snap(selectStart.y);
-let x2=snap(selectEnd.x);
-let y2=snap(selectEnd.y);
-
-if(x2<x1)[x1,x2]=[x2,x1];
-if(y2<y1)[y1,y2]=[y2,y1];
-
-blocks.push({
-img:data.secure_url,
-x:x1,
-y:y1,
-w:(x2-x1)+CELL,
-h:(y2-y1)+CELL
-});
-
-saveCloud();
-clearSelection();
 draw();
 
+},
+{passive:false}
+);
+
+/* ================= IMAGE UPLOAD ================= */
+
+imageInput.onchange = async (e)=> {
+
+const file = e.target.files[0];
+
+if(
+!file ||
+!selectStart ||
+!selectEnd
+) return;
+
+try{
+
+/* CLOUDINARY */
+
+const formData =
+new FormData();
+
+formData.append(
+"file",
+file
+);
+
+formData.append(
+"upload_preset",
+UPLOAD_PRESET
+);
+
+const response = await fetch(
+
+`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,
+
+{
+method:"POST",
+body:formData
+}
+
+);
+
+const data =
+await response.json();
+
+if(!data.secure_url){
+
+alert("Errore Cloudinary");
+
+return;
+
+}
+
+let x1 = snap(selectStart.x);
+let y1 = snap(selectStart.y);
+
+let x2 = snap(selectEnd.x);
+let y2 = snap(selectEnd.y);
+
+if(x2 < x1)
+[x1, x2] = [x2, x1];
+
+if(y2 < y1)
+[y1, y2] = [y2, y1];
+
+const w =
+(x2 - x1) + CELL;
+
+const h =
+(y2 - y1) + CELL;
+
+/* SAVE */
+
+blocks.push({
+
+img:data.secure_url,
+
+x:x1,
+y:y1,
+
+w:w,
+h:h
+
+});
+
+/* SAVE CLOUD */
+
+saveCloud();
+
+/* RESET */
+
+clearSelection();
+
+draw();
+
+}catch(err){
+
+console.error(err);
+
+alert(
+"Errore upload"
+);
+
+}
+
 };
+
+/* ================= RESIZE ================= */
+
+window.addEventListener(
+'resize',
+()=>{
+
+canvas.width =
+innerWidth;
+
+canvas.height =
+innerHeight;
+
+ctx.imageSmoothingEnabled = false;
+
+centerWorld();
+
+draw();
+
+}
+);
 
 /* ================= INIT ================= */
 
 centerWorld();
+
 draw();
 
 </script>
