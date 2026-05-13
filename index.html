@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Pixel Wall FIX</title>
+<title>Pixel Wall FIX REMOVE</title>
 
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
@@ -22,7 +22,6 @@ z-index:9999;
 display:flex;
 gap:10px;
 align-items:center;
-flex-wrap:wrap;
 background:#1b1b1b;
 padding:10px;
 border-radius:10px;
@@ -52,7 +51,7 @@ font-size:13px;
 
 canvas{
 display:block;
-touch-action:none;
+image-rendering:pixelated;
 }
 </style>
 </head>
@@ -62,7 +61,6 @@ touch-action:none;
 <div id="toolbar">
 <button id="adminBtn">Admin</button>
 <button id="removeBtn" style="display:none;">Rimuovi</button>
-<button id="resetBtn">Reset</button>
 <div id="info"></div>
 </div>
 
@@ -86,7 +84,6 @@ const db=firebase.firestore();
 
 /* ================= WORLD ================= */
 const W=1280,H=720;
-const CELL=1;
 
 /* ================= CANVAS ================= */
 const canvas=document.getElementById("canvas");
@@ -101,11 +98,11 @@ let scale=1;
 let offsetX=0;
 let offsetY=0;
 
-let blocks=[];
 let admin=false;
-let selectedBlock=-1;
+let blocks=[];
+let selectedId=null;
 
-/* ================= INIT CENTER ================= */
+/* ================= CENTER ================= */
 function center(){
 offsetX=(canvas.width-W*scale)/2;
 offsetY=(canvas.height-H*scale)/2;
@@ -117,31 +114,11 @@ blocks=d.data()?.blocks||[];
 draw();
 });
 
-/* ================= SAVE ================= */
+/* ================= SAVE (SAFE) ================= */
 function save(){
-db.collection("pixelwall").doc("main").set({blocks});
-}
-
-/* ================= GRID ================= */
-function drawGrid(){
-
-ctx.strokeStyle="#1f1f1f";
-ctx.lineWidth=1/scale;
-
-for(let x=0;x<=W;x++){
-ctx.beginPath();
-ctx.moveTo(x,0);
-ctx.lineTo(x,H);
-ctx.stroke();
-}
-
-for(let y=0;y<=H;y++){
-ctx.beginPath();
-ctx.moveTo(0,y);
-ctx.lineTo(W,y);
-ctx.stroke();
-}
-
+db.collection("pixelwall").doc("main").set({
+blocks:blocks
+},{merge:true});
 }
 
 /* ================= DRAW ================= */
@@ -153,17 +130,12 @@ ctx.save();
 ctx.translate(offsetX,offsetY);
 ctx.scale(scale,scale);
 
-/* background */
-ctx.fillStyle="#111";
+/* world */
+ctx.fillStyle="#151515";
 ctx.fillRect(0,0,W,H);
 
-/* GRID ALWAYS */
-drawGrid();
-
-/* BLOCKS */
-for(let i=0;i<blocks.length;i++){
-
-let b=blocks[i];
+/* blocks */
+for(let b of blocks){
 
 if(!b._img){
 b._img=new Image();
@@ -172,8 +144,7 @@ b._img.src=b.img;
 
 ctx.drawImage(b._img,b.x,b.y,b.w,b.h);
 
-/* selection highlight */
-if(i===selectedBlock){
+if(b.id===selectedId){
 ctx.strokeStyle="red";
 ctx.lineWidth=2/scale;
 ctx.strokeRect(b.x,b.y,b.w,b.h);
@@ -181,45 +152,39 @@ ctx.strokeRect(b.x,b.y,b.w,b.h);
 
 }
 
-/* BORDER */
-ctx.strokeStyle="#444";
+ctx.strokeStyle="#333";
 ctx.strokeRect(0,0,W,H);
 
 ctx.restore();
+
 }
 
 /* ================= COORDS ================= */
 function worldPos(e){
 const r=canvas.getBoundingClientRect();
 return {
-x:Math.floor((e.clientX-r.left-offsetX)/scale),
-y:Math.floor((e.clientY-r.top-offsetY)/scale)
+x:(e.clientX-r.left-offsetX)/scale,
+y:(e.clientY-r.top-offsetY)/scale
 };
 }
 
-canvas.addEventListener("mousemove",(e)=>{
-
-const p=worldPos(e);
-document.getElementById("coords").innerHTML=
-`X:${p.x}<br>Y:${p.y}`;
-
-});
-
-/* ================= SELECT BLOCK ================= */
+/* ================= CLICK SELECT ================= */
 canvas.addEventListener("click",(e)=>{
 
 const p=worldPos(e);
 
-selectedBlock=-1;
+selectedId=null;
 
 for(let i=blocks.length-1;i>=0;i--){
 let b=blocks[i];
 
 if(
-p.x>=b.x && p.x<=b.x+b.w &&
-p.y>=b.y && p.y<=b.y+b.h
+p.x>=b.x &&
+p.x<=b.x+b.w &&
+p.y>=b.y &&
+p.y<=b.y+b.h
 ){
-selectedBlock=i;
+selectedId=b.id;
 break;
 }
 }
@@ -228,15 +193,17 @@ draw();
 
 });
 
-/* ================= REMOVE ================= */
+/* ================= REMOVE (FIX DEFINITIVO) ================= */
 document.getElementById("removeBtn").onclick=()=>{
 
-if(selectedBlock>=0){
-blocks.splice(selectedBlock,1);
+if(!selectedId)return;
+
+blocks=blocks.filter(b=>b.id!==selectedId);
+
+selectedId=null;
+
 save();
-selectedBlock=-1;
 draw();
-}
 
 };
 
@@ -244,6 +211,7 @@ draw();
 document.getElementById("adminBtn").onclick=()=>{
 
 const p=prompt("admin");
+
 if(p==="admin123"){
 admin=!admin;
 document.getElementById("removeBtn").style.display=
@@ -251,27 +219,6 @@ admin?"block":"none";
 }
 
 };
-
-/* ================= RESET ================= */
-document.getElementById("resetBtn").onclick=()=>{
-
-scale=1;
-center();
-draw();
-
-};
-
-/* ================= ZOOM ================= */
-canvas.addEventListener("wheel",(e)=>{
-
-e.preventDefault();
-
-scale*=e.deltaY<0?1.1:0.9;
-scale=Math.max(0.2,Math.min(50,scale));
-
-draw();
-
-},{passive:false});
 
 /* ================= INIT ================= */
 center();
