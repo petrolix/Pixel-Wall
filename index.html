@@ -55,6 +55,7 @@ padding:10px;
 color:#fff;
 border-radius:8px;
 font-size:13px;
+min-width:120px;
 }
 
 #manualPanel{
@@ -117,14 +118,14 @@ authDomain:"pixel-wall-ff621.firebaseapp.com",
 projectId:"pixel-wall-ff621"
 });
 
-const db=firebase.firestore();
+const db = firebase.firestore();
 
 /* ================= CLOUDINARY ================= */
 const CLOUD_NAME="dkwijnvsl";
 const UPLOAD_PRESET="pixelwall";
 
 /* ================= WORLD ================= */
-const W=1280,H=720;
+const W=1280, H=720;
 
 /* ================= CANVAS ================= */
 const canvas=document.getElementById("canvas");
@@ -141,6 +142,7 @@ let offsetY=0;
 
 let admin=false;
 let blocks=[];
+let selectedBlock=-1;
 
 /* ================= UI ================= */
 const info=document.getElementById("info");
@@ -152,7 +154,16 @@ offsetX=(canvas.width-W*scale)/2;
 offsetY=(canvas.height-H*scale)/2;
 }
 
-/* ================= FIREBASE LOAD ================= */
+/* ================= COORD TRANSFORM ================= */
+function screenToWorld(e){
+const r=canvas.getBoundingClientRect();
+return {
+x:(e.clientX-r.left-offsetX)/scale,
+y:(e.clientY-r.top-offsetY)/scale
+};
+}
+
+/* ================= FIREBASE ================= */
 db.collection("pixelwall").doc("main").onSnapshot(d=>{
 blocks=d.data()?.blocks||[];
 draw();
@@ -176,11 +187,16 @@ ctx.scale(scale,scale);
 ctx.fillStyle="#151515";
 ctx.fillRect(0,0,W,H);
 
-/* blocks */
+/* blocks (CACHE FIX) */
 for(let b of blocks){
-let img=new Image();
-img.src=b.img;
-ctx.drawImage(img,b.x,b.y,b.w,b.h);
+
+if(!b._img){
+b._img=new Image();
+b._img.src=b.img;
+}
+
+ctx.drawImage(b._img,b.x,b.y,b.w,b.h);
+
 }
 
 /* border */
@@ -192,18 +208,9 @@ ctx.restore();
 info.innerText=`Zoom ${(scale*100).toFixed(0)}% | Blocchi ${blocks.length}`;
 }
 
-/* ================= POINTER ================= */
-function pos(e){
-const r=canvas.getBoundingClientRect();
-return {
-x:(e.clientX-r.left-offsetX)/scale,
-y:(e.clientY-r.top-offsetY)/scale
-};
-}
-
 /* ================= MOUSE COORDS ================= */
 canvas.addEventListener("mousemove",(e)=>{
-const p=pos(e);
+const p=screenToWorld(e);
 coords.innerHTML=`X:${Math.floor(p.x)}<br>Y:${Math.floor(p.y)}`;
 });
 
@@ -211,18 +218,43 @@ coords.innerHTML=`X:${Math.floor(p.x)}<br>Y:${Math.floor(p.y)}`;
 canvas.addEventListener("wheel",(e)=>{
 e.preventDefault();
 
-const before=pos(e);
+const before=screenToWorld(e);
 
 scale*=e.deltaY<0?1.1:0.9;
 scale=Math.max(0.2,Math.min(50,scale));
 
-const after=pos(e);
+const after=screenToWorld(e);
 
 offsetX+=(after.x-before.x)*scale;
 offsetY+=(after.y-before.y)*scale;
 
 draw();
 },{passive:false});
+
+/* ================= CLICK SELECT (FIX) ================= */
+canvas.addEventListener("click",(e)=>{
+
+const p=screenToWorld(e);
+
+selectedBlock=-1;
+
+for(let i=blocks.length-1;i>=0;i--){
+const b=blocks[i];
+
+if(
+p.x>=b.x &&
+p.x<=b.x+b.w &&
+p.y>=b.y &&
+p.y<=b.y+b.h
+){
+selectedBlock=i;
+break;
+}
+}
+
+draw();
+
+});
 
 /* ================= RESET ================= */
 document.getElementById("resetBtn").onclick=()=>{
@@ -240,13 +272,17 @@ document.getElementById("manualBtn").style.display=admin?"block":"none";
 }
 };
 
-/* ================= MANUAL ================= */
+/* ================= MANUAL INSERT ================= */
 const panel=document.getElementById("manualPanel");
 
-document.getElementById("manualBtn").onclick=()=>panel.style.display="flex";
-document.getElementById("close").onclick=()=>panel.style.display="none";
+document.getElementById("manualBtn").onclick=()=>{
+panel.style.display="flex";
+};
 
-/* ================= INSERT ================= */
+document.getElementById("close").onclick=()=>{
+panel.style.display="none";
+};
+
 document.getElementById("add").onclick=async()=>{
 
 const file=document.getElementById("file").files[0];
@@ -282,6 +318,7 @@ x,y,w,h
 save();
 panel.style.display="none";
 draw();
+
 };
 
 /* ================= INIT ================= */
