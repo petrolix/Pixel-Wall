@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Pixel Wall</title>
+<title>Pixel Wall FIX</title>
 
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
@@ -29,20 +29,13 @@ border-radius:10px;
 border:1px solid #333;
 }
 
-button,input{
+button{
 background:#222;
 color:#fff;
 border:1px solid #444;
 padding:8px 12px;
 border-radius:8px;
-}
-
-button{cursor:pointer;}
-button:hover{background:#333;}
-
-#info{
-color:#fff;
-font-size:14px;
+cursor:pointer;
 }
 
 #coords{
@@ -55,31 +48,12 @@ padding:10px;
 color:#fff;
 border-radius:8px;
 font-size:13px;
-min-width:120px;
-}
-
-#manualPanel{
-position:fixed;
-left:50%;
-top:50%;
-transform:translate(-50%,-50%);
-background:#1b1b1b;
-border:1px solid #333;
-padding:20px;
-border-radius:10px;
-display:none;
-flex-direction:column;
-gap:10px;
-z-index:99999;
 }
 
 canvas{
 display:block;
-cursor:grab;
-image-rendering:pixelated;
 touch-action:none;
 }
-canvas:active{cursor:grabbing;}
 </style>
 </head>
 
@@ -87,22 +61,12 @@ canvas:active{cursor:grabbing;}
 
 <div id="toolbar">
 <button id="adminBtn">Admin</button>
+<button id="removeBtn" style="display:none;">Rimuovi</button>
 <button id="resetBtn">Reset</button>
-<button id="manualBtn" style="display:none;">Inserimento Manuale</button>
 <div id="info"></div>
 </div>
 
 <div id="coords">X:0<br>Y:0</div>
-
-<div id="manualPanel">
-<input id="mx" placeholder="X">
-<input id="my" placeholder="Y">
-<input id="mw" placeholder="W">
-<input id="mh" placeholder="H">
-<input type="file" id="file">
-<button id="add">Inserisci</button>
-<button id="close">Chiudi</button>
-</div>
 
 <canvas id="canvas"></canvas>
 
@@ -120,12 +84,9 @@ projectId:"pixel-wall-ff621"
 
 const db=firebase.firestore();
 
-/* ================= CLOUDINARY ================= */
-const CLOUD_NAME="dkwijnvsl";
-const UPLOAD_PRESET="pixelwall";
-
 /* ================= WORLD ================= */
 const W=1280,H=720;
+const CELL=1;
 
 /* ================= CANVAS ================= */
 const canvas=document.getElementById("canvas");
@@ -140,30 +101,17 @@ let scale=1;
 let offsetX=0;
 let offsetY=0;
 
-let admin=false;
 let blocks=[];
+let admin=false;
 let selectedBlock=-1;
 
-/* ================= UI ================= */
-const info=document.getElementById("info");
-const coords=document.getElementById("coords");
-
-/* ================= CENTER ================= */
+/* ================= INIT CENTER ================= */
 function center(){
 offsetX=(canvas.width-W*scale)/2;
 offsetY=(canvas.height-H*scale)/2;
 }
 
-/* ================= COORD ================= */
-function screenToWorld(e){
-const r=canvas.getBoundingClientRect();
-return {
-x:(e.clientX-r.left-offsetX)/scale,
-y:(e.clientY-r.top-offsetY)/scale
-};
-}
-
-/* ================= FIREBASE ================= */
+/* ================= LOAD ================= */
 db.collection("pixelwall").doc("main").onSnapshot(d=>{
 blocks=d.data()?.blocks||[];
 draw();
@@ -172,6 +120,28 @@ draw();
 /* ================= SAVE ================= */
 function save(){
 db.collection("pixelwall").doc("main").set({blocks});
+}
+
+/* ================= GRID ================= */
+function drawGrid(){
+
+ctx.strokeStyle="#1f1f1f";
+ctx.lineWidth=1/scale;
+
+for(let x=0;x<=W;x++){
+ctx.beginPath();
+ctx.moveTo(x,0);
+ctx.lineTo(x,H);
+ctx.stroke();
+}
+
+for(let y=0;y<=H;y++){
+ctx.beginPath();
+ctx.moveTo(0,y);
+ctx.lineTo(W,y);
+ctx.stroke();
+}
+
 }
 
 /* ================= DRAW ================= */
@@ -183,44 +153,72 @@ ctx.save();
 ctx.translate(offsetX,offsetY);
 ctx.scale(scale,scale);
 
-/* world */
-ctx.fillStyle="#151515";
+/* background */
+ctx.fillStyle="#111";
 ctx.fillRect(0,0,W,H);
 
-/* blocks */
-for(let b of blocks){
+/* GRID ALWAYS */
+drawGrid();
+
+/* BLOCKS */
+for(let i=0;i<blocks.length;i++){
+
+let b=blocks[i];
+
 if(!b._img){
 b._img=new Image();
 b._img.src=b.img;
 }
+
 ctx.drawImage(b._img,b.x,b.y,b.w,b.h);
+
+/* selection highlight */
+if(i===selectedBlock){
+ctx.strokeStyle="red";
+ctx.lineWidth=2/scale;
+ctx.strokeRect(b.x,b.y,b.w,b.h);
 }
 
-/* border */
-ctx.strokeStyle="#333";
+}
+
+/* BORDER */
+ctx.strokeStyle="#444";
 ctx.strokeRect(0,0,W,H);
 
 ctx.restore();
-
-info.innerText=`Zoom ${(scale*100).toFixed(0)}% | Blocchi ${blocks.length}`;
 }
 
-/* ================= COORD LIVE ================= */
+/* ================= COORDS ================= */
+function worldPos(e){
+const r=canvas.getBoundingClientRect();
+return {
+x:Math.floor((e.clientX-r.left-offsetX)/scale),
+y:Math.floor((e.clientY-r.top-offsetY)/scale)
+};
+}
+
 canvas.addEventListener("mousemove",(e)=>{
-const p=screenToWorld(e);
-coords.innerHTML=`X:${Math.floor(p.x)}<br>Y:${Math.floor(p.y)}`;
+
+const p=worldPos(e);
+document.getElementById("coords").innerHTML=
+`X:${p.x}<br>Y:${p.y}`;
+
 });
 
-/* ================= CLICK SELECT ================= */
+/* ================= SELECT BLOCK ================= */
 canvas.addEventListener("click",(e)=>{
 
-const p=screenToWorld(e);
+const p=worldPos(e);
 
 selectedBlock=-1;
 
 for(let i=blocks.length-1;i>=0;i--){
-const b=blocks[i];
-if(p.x>=b.x && p.x<=b.x+b.w && p.y>=b.y && p.y<=b.y+b.h){
+let b=blocks[i];
+
+if(
+p.x>=b.x && p.x<=b.x+b.w &&
+p.y>=b.y && p.y<=b.y+b.h
+){
 selectedBlock=i;
 break;
 }
@@ -230,151 +228,50 @@ draw();
 
 });
 
-/* ================= ZOOM MOUSE ================= */
-canvas.addEventListener("wheel",(e)=>{
-e.preventDefault();
+/* ================= REMOVE ================= */
+document.getElementById("removeBtn").onclick=()=>{
 
-const before=screenToWorld(e);
-
-scale*=e.deltaY<0?1.1:0.9;
-scale=Math.max(0.2,Math.min(50,scale));
-
-const after=screenToWorld(e);
-
-offsetX+=(after.x-before.x)*scale;
-offsetY+=(after.y-before.y)*scale;
-
+if(selectedBlock>=0){
+blocks.splice(selectedBlock,1);
+save();
+selectedBlock=-1;
 draw();
-},{passive:false});
+}
 
-/* ================= RESET ================= */
-document.getElementById("resetBtn").onclick=()=>{
-scale=1;
-center();
-draw();
 };
 
 /* ================= ADMIN ================= */
 document.getElementById("adminBtn").onclick=()=>{
+
 const p=prompt("admin");
 if(p==="admin123"){
 admin=!admin;
-document.getElementById("manualBtn").style.display=admin?"block":"none";
+document.getElementById("removeBtn").style.display=
+admin?"block":"none";
 }
+
 };
 
-/* ================= MANUAL ================= */
-const panel=document.getElementById("manualPanel");
+/* ================= RESET ================= */
+document.getElementById("resetBtn").onclick=()=>{
 
-document.getElementById("manualBtn").onclick=()=>panel.style.display="flex";
-document.getElementById("close").onclick=()=>panel.style.display="none";
-
-/* ================= INSERT ================= */
-document.getElementById("add").onclick=async()=>{
-
-const file=document.getElementById("file").files[0];
-if(!file)return;
-
-const x=parseInt(document.getElementById("mx").value)||0;
-const y=parseInt(document.getElementById("my").value)||0;
-const w=parseInt(document.getElementById("mw").value)||1;
-const h=parseInt(document.getElementById("mh").value)||1;
-
-/* CLOUDINARY */
-const form=new FormData();
-form.append("file",file);
-form.append("upload_preset",UPLOAD_PRESET);
-
-const res=await fetch(
-`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,
-{method:"POST",body:form}
-);
-
-const data=await res.json();
-
-if(!data.secure_url){
-alert("errore upload");
-return;
-}
-
-blocks.push({
-img:data.secure_url,
-x,y,w,h
-});
-
-save();
-panel.style.display="none";
+scale=1;
+center();
 draw();
 
 };
 
-/* ================= PAN + TOUCH FIX ================= */
+/* ================= ZOOM ================= */
+canvas.addEventListener("wheel",(e)=>{
 
-let dragging=false;
-let dragX=0;
-let dragY=0;
+e.preventDefault();
 
-function startDrag(x,y){
-dragging=true;
-dragX=x;
-dragY=y;
-}
-
-function moveDrag(x,y){
-offsetX += x-dragX;
-offsetY += y-dragY;
-dragX=x;
-dragY=y;
-draw();
-}
-
-function endDrag(){
-dragging=false;
-}
-
-/* mouse */
-canvas.addEventListener("mousedown",(e)=>startDrag(e.clientX,e.clientY));
-canvas.addEventListener("mousemove",(e)=>dragging&&moveDrag(e.clientX,e.clientY));
-canvas.addEventListener("mouseup",endDrag);
-canvas.addEventListener("mouseleave",endDrag);
-
-/* touch */
-let pinchDist=0;
-let pinchScale=1;
-
-function dist(t1,t2){
-return Math.hypot(t1.clientX-t2.clientX,t1.clientY-t2.clientY);
-}
-
-canvas.addEventListener("touchstart",(e)=>{
-
-if(e.touches.length===1){
-startDrag(e.touches[0].clientX,e.touches[0].clientY);
-}
-
-if(e.touches.length===2){
-pinchDist=dist(e.touches[0],e.touches[1]);
-pinchScale=scale;
-}
-
-},{passive:true});
-
-canvas.addEventListener("touchmove",(e)=>{
-
-if(e.touches.length===1 && dragging){
-moveDrag(e.touches[0].clientX,e.touches[0].clientY);
-}
-
-if(e.touches.length===2){
-const d=dist(e.touches[0],e.touches[1]);
-scale=pinchScale*(d/pinchDist);
+scale*=e.deltaY<0?1.1:0.9;
 scale=Math.max(0.2,Math.min(50,scale));
+
 draw();
-}
 
 },{passive:false});
-
-canvas.addEventListener("touchend",()=>endDrag());
 
 /* ================= INIT ================= */
 center();
