@@ -210,8 +210,6 @@ let x =
 let y =
 (e.clientY - rect.top - offsetY) / scale;
 
-/* LIMIT WORLD */
-
 x = clamp(x,0,WORLD_W-1);
 y = clamp(y,0,WORLD_H-1);
 
@@ -424,10 +422,10 @@ if(x2 < x1)[x1,x2]=[x2,x1];
 if(y2 < y1)[y1,y2]=[y2,y1];
 
 const w =
-(x2-x1)+CELL;
+(x2-x1)+1;
 
 const h =
-(y2-y1)+CELL;
+(y2-y1)+1;
 
 ctx.fillStyle =
 "rgba(0,150,255,0.25)";
@@ -533,8 +531,8 @@ if(admin){
 
 selectStart = {
 
-x:clamp(pos.x,0,WORLD_W-1),
-y:clamp(pos.y,0,WORLD_H-1)
+x:snap(clamp(pos.x,0,WORLD_W-1)),
+y:snap(clamp(pos.y,0,WORLD_H-1))
 
 };
 
@@ -570,8 +568,8 @@ selectStart
 
 selectEnd = {
 
-x:clamp(pos.x,0,WORLD_W-1),
-y:clamp(pos.y,0,WORLD_H-1)
+x:snap(clamp(pos.x,0,WORLD_W-1)),
+y:snap(clamp(pos.y,0,WORLD_H-1))
 
 };
 
@@ -644,10 +642,10 @@ const b = blocks[i];
 if(
 
 pos.x >= b.x &&
-pos.x <= b.x + b.w &&
+pos.x < b.x + b.w &&
 
 pos.y >= b.y &&
-pos.y <= b.y + b.h
+pos.y < b.y + b.h
 
 ){
 
@@ -722,8 +720,8 @@ if(admin){
 
 selectStart = {
 
-x:clamp(pos.x,0,WORLD_W-1),
-y:clamp(pos.y,0,WORLD_H-1)
+x:snap(clamp(pos.x,0,WORLD_W-1)),
+y:snap(clamp(pos.y,0,WORLD_H-1))
 
 };
 
@@ -784,8 +782,8 @@ selectStart
 
 selectEnd = {
 
-x:clamp(pos.x,0,WORLD_W-1),
-y:clamp(pos.y,0,WORLD_H-1)
+x:snap(clamp(pos.x,0,WORLD_W-1)),
+y:snap(clamp(pos.y,0,WORLD_H-1))
 
 };
 
@@ -920,23 +918,27 @@ snap(selectEnd.y);
 if(x2<x1)[x1,x2]=[x2,x1];
 if(y2<y1)[y1,y2]=[y2,y1];
 
-/* LIMIT WORLD */
-
 x1 = clamp(x1,0,WORLD_W-1);
 y1 = clamp(y1,0,WORLD_H-1);
 
 x2 = clamp(x2,0,WORLD_W-1);
 y2 = clamp(y2,0,WORLD_H-1);
 
+const finalW =
+(x2 - x1) + 1;
+
+const finalH =
+(y2 - y1) + 1;
+
 blocks.push({
 
 img:data.secure_url,
 
-x:x1,
-y:y1,
+x:Math.round(x1),
+y:Math.round(y1),
 
-w:(x2-x1)+CELL,
-h:(y2-y1)+CELL
+w:Math.round(finalW),
+h:Math.round(finalH)
 
 });
 
