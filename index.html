@@ -89,7 +89,7 @@ color:#fff;
 
 font-size:14px;
 
-min-width:220px;
+min-width:240px;
 
 line-height:1.5;
 
@@ -309,27 +309,6 @@ x = clamp(x,0,WORLD_W-1);
 y = clamp(y,0,WORLD_H-1);
 
 return {x,y};
-
-}
-
-async function copyCoords(text){
-
-try{
-
-await navigator.clipboard.writeText(text);
-
-coords.innerHTML += `
-<br>
-<small style="color:#00ff88">
-Coordinate copiate
-</small>
-`;
-
-}catch(err){
-
-console.log(err);
-
-}
 
 }
 
@@ -675,6 +654,8 @@ centerWorld();
 
 clearSelection();
 
+lockedPixel = null;
+
 draw();
 
 };
@@ -692,8 +673,8 @@ if(admin){
 
 selectStart = {
 
-x:snap(clamp(pos.x,0,WORLD_W-1)),
-y:snap(clamp(pos.y,0,WORLD_H-1))
+x:snap(pos.x),
+y:snap(pos.y)
 
 };
 
@@ -725,22 +706,61 @@ getPointerPos(e);
 hoverPixelX = snap(pos.x);
 hoverPixelY = snap(pos.y);
 
-if(!lockedPixel){
-
 coords.innerHTML = `
 
-<b>PIXEL</b><br>
+<b>${lockedPixel ? 'PIXEL BLOCCATO' : 'PIXEL'}</b><br>
 
-X: ${hoverPixelX}<br>
-Y: ${hoverPixelY}<br>
+X: ${lockedPixel ? lockedPixel.x : hoverPixelX}<br>
+Y: ${lockedPixel ? lockedPixel.y : hoverPixelY}<br>
 
-<button onclick="
-copyCoords('${hoverPixelX},${hoverPixelY}')
-">
+${admin && selectStart && selectEnd ? `
+
+<hr style="margin:8px 0;border-color:#333;">
+
+SELEZIONE<br>
+
+Da:
+${Math.min(selectStart.x,selectEnd.x)},
+${Math.min(selectStart.y,selectEnd.y)}
+
+<br>
+
+A:
+${Math.max(selectStart.x,selectEnd.x)},
+${Math.max(selectStart.y,selectEnd.y)}
+
+<br>
+
+W:
+${Math.abs(selectEnd.x-selectStart.x)+1}px
+
+<br>
+
+H:
+${Math.abs(selectEnd.y-selectStart.y)+1}px
+
+` : ''}
+
+<button id="copyCoordsBtn">
 Copia Coordinate
 </button>
 
 `;
+
+const copyBtn =
+document.getElementById("copyCoordsBtn");
+
+if(copyBtn){
+
+copyBtn.onclick = ()=>{
+
+const text = lockedPixel
+? `${lockedPixel.x},${lockedPixel.y}`
+: `${hoverPixelX},${hoverPixelY}`;
+
+navigator.clipboard.writeText(text);
+
+};
 
 }
 
@@ -751,8 +771,8 @@ selectStart
 
 selectEnd = {
 
-x:snap(clamp(pos.x,0,WORLD_W-1)),
-y:snap(clamp(pos.y,0,WORLD_H-1))
+x:snap(pos.x),
+y:snap(pos.y)
 
 };
 
@@ -819,21 +839,6 @@ y:snap(pos.y)
 
 };
 
-coords.innerHTML = `
-
-<b>PIXEL BLOCCATO</b><br>
-
-X: ${lockedPixel.x}<br>
-Y: ${lockedPixel.y}<br>
-
-<button onclick="
-copyCoords('${lockedPixel.x},${lockedPixel.y}')
-">
-Copia Coordinate
-</button>
-
-`;
-
 selectedBlock = -1;
 
 for(let i=0;i<blocks.length;i++){
@@ -885,182 +890,6 @@ draw();
 
 },
 {passive:false}
-);
-
-/* ================= TOUCH ================= */
-
-let pinchStartDist = 0;
-let pinchStartScale = scale;
-
-function dist(t1,t2){
-
-return Math.hypot(
-
-t1.clientX - t2.clientX,
-t1.clientY - t2.clientY
-
-);
-
-}
-
-canvas.addEventListener(
-"touchstart",
-(e)=>{
-
-if(e.target !== canvas) return;
-
-const t =
-e.touches[0];
-
-const pos =
-getPointerPos(t);
-
-if(e.touches.length === 1){
-
-if(admin){
-
-selectStart = {
-
-x:snap(clamp(pos.x,0,WORLD_W-1)),
-y:snap(clamp(pos.y,0,WORLD_H-1))
-
-};
-
-selectEnd = {
-...selectStart
-};
-
-draw();
-
-return;
-
-}
-
-dragging = true;
-
-dragX = t.clientX;
-dragY = t.clientY;
-
-}
-
-if(e.touches.length === 2){
-
-pinchStartDist =
-dist(
-e.touches[0],
-e.touches[1]
-);
-
-pinchStartScale =
-scale;
-
-dragging = false;
-
-}
-
-},
-{passive:true}
-);
-
-canvas.addEventListener(
-"touchmove",
-(e)=>{
-
-if(e.target !== canvas) return;
-
-const t =
-e.touches[0];
-
-const pos =
-getPointerPos(t);
-
-hoverPixelX = snap(pos.x);
-hoverPixelY = snap(pos.y);
-
-if(e.touches.length === 1){
-
-if(
-admin &&
-selectStart
-){
-
-selectEnd = {
-
-x:snap(clamp(pos.x,0,WORLD_W-1)),
-y:snap(clamp(pos.y,0,WORLD_H-1))
-
-};
-
-draw();
-
-return;
-
-}
-
-if(dragging){
-
-offsetX +=
-t.clientX - dragX;
-
-offsetY +=
-t.clientY - dragY;
-
-dragX = t.clientX;
-dragY = t.clientY;
-
-draw();
-
-}
-
-}
-
-if(e.touches.length === 2){
-
-const d =
-dist(
-e.touches[0],
-e.touches[1]
-);
-
-scale =
-pinchStartScale *
-(d / pinchStartDist);
-
-scale = Math.max(
-0.2,
-Math.min(100,scale)
-);
-
-draw();
-
-}
-
-},
-{passive:true}
-);
-
-canvas.addEventListener(
-"touchend",
-()=>{
-
-dragging = false;
-
-if(
-admin &&
-selectStart &&
-selectEnd
-){
-
-setTimeout(()=>{
-
-imageInput.click();
-
-},50);
-
-}
-
-},
-{passive:true}
 );
 
 /* ================= UPLOAD ================= */
@@ -1121,12 +950,6 @@ snap(selectEnd.y);
 
 if(x2<x1)[x1,x2]=[x2,x1];
 if(y2<y1)[y1,y2]=[y2,y1];
-
-x1 = clamp(x1,0,WORLD_W-1);
-y1 = clamp(y1,0,WORLD_H-1);
-
-x2 = clamp(x2,0,WORLD_W-1);
-y2 = clamp(y2,0,WORLD_H-1);
 
 const finalW =
 (x2 - x1) + 1;
