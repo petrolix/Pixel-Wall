@@ -118,14 +118,14 @@ authDomain:"pixel-wall-ff621.firebaseapp.com",
 projectId:"pixel-wall-ff621"
 });
 
-const db = firebase.firestore();
+const db=firebase.firestore();
 
 /* ================= CLOUDINARY ================= */
 const CLOUD_NAME="dkwijnvsl";
 const UPLOAD_PRESET="pixelwall";
 
 /* ================= WORLD ================= */
-const W=1280, H=720;
+const W=1280,H=720;
 
 /* ================= CANVAS ================= */
 const canvas=document.getElementById("canvas");
@@ -154,7 +154,7 @@ offsetX=(canvas.width-W*scale)/2;
 offsetY=(canvas.height-H*scale)/2;
 }
 
-/* ================= COORD TRANSFORM ================= */
+/* ================= COORD ================= */
 function screenToWorld(e){
 const r=canvas.getBoundingClientRect();
 return {
@@ -187,16 +187,13 @@ ctx.scale(scale,scale);
 ctx.fillStyle="#151515";
 ctx.fillRect(0,0,W,H);
 
-/* blocks (CACHE FIX) */
+/* blocks */
 for(let b of blocks){
-
 if(!b._img){
 b._img=new Image();
 b._img.src=b.img;
 }
-
 ctx.drawImage(b._img,b.x,b.y,b.w,b.h);
-
 }
 
 /* border */
@@ -208,13 +205,32 @@ ctx.restore();
 info.innerText=`Zoom ${(scale*100).toFixed(0)}% | Blocchi ${blocks.length}`;
 }
 
-/* ================= MOUSE COORDS ================= */
+/* ================= COORD LIVE ================= */
 canvas.addEventListener("mousemove",(e)=>{
 const p=screenToWorld(e);
 coords.innerHTML=`X:${Math.floor(p.x)}<br>Y:${Math.floor(p.y)}`;
 });
 
-/* ================= ZOOM ================= */
+/* ================= CLICK SELECT ================= */
+canvas.addEventListener("click",(e)=>{
+
+const p=screenToWorld(e);
+
+selectedBlock=-1;
+
+for(let i=blocks.length-1;i>=0;i--){
+const b=blocks[i];
+if(p.x>=b.x && p.x<=b.x+b.w && p.y>=b.y && p.y<=b.y+b.h){
+selectedBlock=i;
+break;
+}
+}
+
+draw();
+
+});
+
+/* ================= ZOOM MOUSE ================= */
 canvas.addEventListener("wheel",(e)=>{
 e.preventDefault();
 
@@ -230,31 +246,6 @@ offsetY+=(after.y-before.y)*scale;
 
 draw();
 },{passive:false});
-
-/* ================= CLICK SELECT (FIX) ================= */
-canvas.addEventListener("click",(e)=>{
-
-const p=screenToWorld(e);
-
-selectedBlock=-1;
-
-for(let i=blocks.length-1;i>=0;i--){
-const b=blocks[i];
-
-if(
-p.x>=b.x &&
-p.x<=b.x+b.w &&
-p.y>=b.y &&
-p.y<=b.y+b.h
-){
-selectedBlock=i;
-break;
-}
-}
-
-draw();
-
-});
 
 /* ================= RESET ================= */
 document.getElementById("resetBtn").onclick=()=>{
@@ -272,17 +263,13 @@ document.getElementById("manualBtn").style.display=admin?"block":"none";
 }
 };
 
-/* ================= MANUAL INSERT ================= */
+/* ================= MANUAL ================= */
 const panel=document.getElementById("manualPanel");
 
-document.getElementById("manualBtn").onclick=()=>{
-panel.style.display="flex";
-};
+document.getElementById("manualBtn").onclick=()=>panel.style.display="flex";
+document.getElementById("close").onclick=()=>panel.style.display="none";
 
-document.getElementById("close").onclick=()=>{
-panel.style.display="none";
-};
-
+/* ================= INSERT ================= */
 document.getElementById("add").onclick=async()=>{
 
 const file=document.getElementById("file").files[0];
@@ -320,6 +307,74 @@ panel.style.display="none";
 draw();
 
 };
+
+/* ================= PAN + TOUCH FIX ================= */
+
+let dragging=false;
+let dragX=0;
+let dragY=0;
+
+function startDrag(x,y){
+dragging=true;
+dragX=x;
+dragY=y;
+}
+
+function moveDrag(x,y){
+offsetX += x-dragX;
+offsetY += y-dragY;
+dragX=x;
+dragY=y;
+draw();
+}
+
+function endDrag(){
+dragging=false;
+}
+
+/* mouse */
+canvas.addEventListener("mousedown",(e)=>startDrag(e.clientX,e.clientY));
+canvas.addEventListener("mousemove",(e)=>dragging&&moveDrag(e.clientX,e.clientY));
+canvas.addEventListener("mouseup",endDrag);
+canvas.addEventListener("mouseleave",endDrag);
+
+/* touch */
+let pinchDist=0;
+let pinchScale=1;
+
+function dist(t1,t2){
+return Math.hypot(t1.clientX-t2.clientX,t1.clientY-t2.clientY);
+}
+
+canvas.addEventListener("touchstart",(e)=>{
+
+if(e.touches.length===1){
+startDrag(e.touches[0].clientX,e.touches[0].clientY);
+}
+
+if(e.touches.length===2){
+pinchDist=dist(e.touches[0],e.touches[1]);
+pinchScale=scale;
+}
+
+},{passive:true});
+
+canvas.addEventListener("touchmove",(e)=>{
+
+if(e.touches.length===1 && dragging){
+moveDrag(e.touches[0].clientX,e.touches[0].clientY);
+}
+
+if(e.touches.length===2){
+const d=dist(e.touches[0],e.touches[1]);
+scale=pinchScale*(d/pinchDist);
+scale=Math.max(0.2,Math.min(50,scale));
+draw();
+}
+
+},{passive:false});
+
+canvas.addEventListener("touchend",()=>endDrag());
 
 /* ================= INIT ================= */
 center();
