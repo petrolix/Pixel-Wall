@@ -52,7 +52,6 @@ border-radius:8px;
 
 button{
 cursor:pointer;
-touch-action: manipulation;
 }
 
 button:hover{
@@ -71,32 +70,51 @@ font-size:14px;
 #coords{
 
 position:fixed;
-
 right:10px;
 top:10px;
-
 z-index:99999;
-
 background:#1b1b1b;
-
 border:1px solid #333;
-
 padding:12px;
-
 border-radius:10px;
-
 color:#fff;
-
 font-size:14px;
-
 min-width:240px;
-
 line-height:1.5;
-
 }
 
 #coords button{
 margin-top:8px;
+width:100%;
+}
+
+/* MANUAL PANEL */
+#manualPanel{
+
+position:fixed;
+left:50%;
+top:50%;
+transform:translate(-50%,-50%);
+z-index:100000;
+
+background:#1b1b1b;
+border:1px solid #333;
+padding:20px;
+border-radius:12px;
+
+display:none;
+flex-direction:column;
+gap:10px;
+
+min-width:280px;
+}
+
+#manualPanel h3{
+color:#fff;
+margin-bottom:10px;
+}
+
+#manualPanel input{
 width:100%;
 }
 
@@ -120,31 +138,42 @@ cursor:grabbing;
 
 <button id="adminBtn">Admin</button>
 
-<button id="removeBtn" style="display:none;">
-Rimuovi
-</button>
+<button id="removeBtn" style="display:none;">Rimuovi</button>
 
 <button id="resetBtn">Reset</button>
 
 <input type="number" id="searchX" placeholder="X">
 <input type="number" id="searchY" placeholder="Y">
-
 <button id="gotoBtn">Vai</button>
+
+<!-- SOLO ADMIN -->
+<button id="manualBtn" style="display:none;">
+Inserimento Manuale
+</button>
 
 <div id="info"></div>
 
 </div>
 
-<div id="coords">
-Coordinate
+<div id="coords">Coordinate</div>
+
+<!-- MANUAL PANEL -->
+<div id="manualPanel">
+
+<h3>Inserimento Manuale</h3>
+
+<input type="number" id="manualX" placeholder="X">
+<input type="number" id="manualY" placeholder="Y">
+<input type="number" id="manualW" placeholder="Larghezza">
+<input type="number" id="manualH" placeholder="Altezza">
+
+<button id="manualUploadBtn">Carica Immagine</button>
+<button id="manualCloseBtn">Chiudi</button>
+
 </div>
 
-<input
-type="file"
-id="imageInput"
-accept="image/*"
-hidden
->
+<input type="file" id="imageInput" accept="image/*" hidden>
+<input type="file" id="manualImageInput" accept="image/*" hidden>
 
 <canvas id="canvas"></canvas>
 
@@ -156,18 +185,15 @@ hidden
 /* ================= FIREBASE ================= */
 
 const firebaseConfig = {
-
 apiKey: "AIzaSyDFPiQn3Uq7_OA0e7UxNoeze8z_EfndwsU",
 authDomain: "pixel-wall-ff621.firebaseapp.com",
 projectId: "pixel-wall-ff621",
 storageBucket: "pixel-wall-ff621.firebasestorage.app",
 messagingSenderId: "623723716677",
 appId: "1:623723716677:web:4c22d403e1251ef0e9432c"
-
 };
 
 firebase.initializeApp(firebaseConfig);
-
 const db = firebase.firestore();
 
 /* ================= CLOUDINARY ================= */
@@ -177,11 +203,8 @@ const UPLOAD_PRESET = "pixelwall";
 
 /* ================= CANVAS ================= */
 
-const canvas =
-document.getElementById("canvas");
-
-const ctx =
-canvas.getContext("2d");
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
 
 ctx.imageSmoothingEnabled = false;
 
@@ -190,125 +213,64 @@ canvas.height = innerHeight;
 
 /* ================= DOM ================= */
 
-const adminBtn =
-document.getElementById("adminBtn");
+const adminBtn = document.getElementById("adminBtn");
+const removeBtn = document.getElementById("removeBtn");
+const resetBtn = document.getElementById("resetBtn");
 
-const removeBtn =
-document.getElementById("removeBtn");
+const manualBtn = document.getElementById("manualBtn");
+const manualPanel = document.getElementById("manualPanel");
+const manualCloseBtn = document.getElementById("manualCloseBtn");
+const manualUploadBtn = document.getElementById("manualUploadBtn");
+const manualImageInput = document.getElementById("manualImageInput");
 
-const resetBtn =
-document.getElementById("resetBtn");
+const manualX = document.getElementById("manualX");
+const manualY = document.getElementById("manualY");
+const manualW = document.getElementById("manualW");
+const manualH = document.getElementById("manualH");
 
-const imageInput =
-document.getElementById("imageInput");
+const searchX = document.getElementById("searchX");
+const searchY = document.getElementById("searchY");
+const gotoBtn = document.getElementById("gotoBtn");
 
-const info =
-document.getElementById("info");
-
-const coords =
-document.getElementById("coords");
-
-const searchX =
-document.getElementById("searchX");
-
-const searchY =
-document.getElementById("searchY");
-
-const gotoBtn =
-document.getElementById("gotoBtn");
+const coords = document.getElementById("coords");
+const info = document.getElementById("info");
 
 /* ================= WORLD ================= */
 
 const WORLD_W = 1280;
 const WORLD_H = 720;
-
 const CELL = 1;
 
 /* ================= STATE ================= */
 
 let scale = 1;
-
 let offsetX = 0;
 let offsetY = 0;
 
-let dragging = false;
-
-let dragX = 0;
-let dragY = 0;
-
 let admin = false;
+
+let blocks = [];
 
 let selectStart = null;
 let selectEnd = null;
 
 let selectedBlock = -1;
 
-let blocks = [];
-
 let hoverPixelX = 0;
 let hoverPixelY = 0;
 
 let lockedPixel = null;
 
-/* ================= CACHE ================= */
+/* ================= ADMIN UI ================= */
 
-const imageCache = {};
+function updateAdminUI(){
 
-/* ================= HELPERS ================= */
-
-function snap(v){
-return Math.floor(v / CELL) * CELL;
-}
-
-function clamp(v,min,max){
-return Math.max(min,Math.min(max,v));
-}
-
-function centerWorld(){
-
-offsetX =
-(canvas.width - WORLD_W * scale) / 2;
-
-offsetY =
-(canvas.height - WORLD_H * scale) / 2;
-
-}
-
-function updateUI(){
+manualBtn.style.display = admin ? "inline-block" : "none";
 
 removeBtn.style.display =
 (admin && selectedBlock >= 0)
 ? "inline-block"
 : "none";
-
-}
-
-function clearSelection(){
-
-selectStart = null;
-selectEnd = null;
-
-selectedBlock = -1;
-
-updateUI();
-
-}
-
-function getPointerPos(e){
-
-const rect =
-canvas.getBoundingClientRect();
-
-let x =
-(e.clientX - rect.left - offsetX) / scale;
-
-let y =
-(e.clientY - rect.top - offsetY) / scale;
-
-x = clamp(x,0,WORLD_W-1);
-y = clamp(y,0,WORLD_H-1);
-
-return {x,y};
 
 }
 
@@ -318,8 +280,7 @@ db.collection("pixelwall")
 .doc("main")
 .onSnapshot((doc)=>{
 
-blocks =
-doc.data()?.blocks || [];
+blocks = doc.data()?.blocks || [];
 
 requestAnimationFrame(draw);
 
@@ -331,9 +292,7 @@ function saveCloud(){
 
 db.collection("pixelwall")
 .doc("main")
-.set({
-blocks
-});
+.set({blocks});
 
 }
 
@@ -341,37 +300,86 @@ blocks
 
 gotoBtn.onclick = ()=>{
 
-const x =
-parseInt(searchX.value);
+const x = parseInt(searchX.value);
+const y = parseInt(searchY.value);
 
-const y =
-parseInt(searchY.value);
+if(isNaN(x)||isNaN(y)) return;
 
-if(
-isNaN(x) ||
-isNaN(y)
-)return;
-
-const targetX =
-clamp(x,0,WORLD_W-1);
-
-const targetY =
-clamp(y,0,WORLD_H-1);
-
-offsetX =
-canvas.width/2 -
-(targetX * scale);
-
-offsetY =
-canvas.height/2 -
-(targetY * scale);
-
-lockedPixel = {
-x:targetX,
-y:targetY
-};
+offsetX = canvas.width/2 - x*scale;
+offsetY = canvas.height/2 - y*scale;
 
 draw();
+
+};
+
+/* ================= MANUAL ================= */
+
+manualBtn.onclick = ()=>{
+manualPanel.style.display = "flex";
+};
+
+manualCloseBtn.onclick = ()=>{
+manualPanel.style.display = "none";
+};
+
+manualUploadBtn.onclick = async ()=>{
+
+manualImageInput.click();
+
+};
+
+manualImageInput.onchange = async (e)=>{
+
+const file = e.target.files[0];
+if(!file) return;
+
+const x = parseInt(manualX.value)||0;
+const y = parseInt(manualY.value)||0;
+const w = parseInt(manualW.value)||1;
+const h = parseInt(manualH.value)||1;
+
+/* CLOUDINARY */
+
+const form = new FormData();
+form.append("file",file);
+form.append("upload_preset",UPLOAD_PRESET);
+
+const res = await fetch(
+`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,
+{method:"POST",body:form}
+);
+
+const data = await res.json();
+
+if(!data.secure_url){
+alert("Errore upload");
+return;
+}
+
+blocks.push({
+img:data.secure_url,
+x,y,
+w,h
+});
+
+saveCloud();
+manualPanel.style.display="none";
+draw();
+
+};
+
+/* ================= ADMIN ================= */
+
+adminBtn.onclick = ()=>{
+
+const p = prompt("Password admin");
+
+if(p==="admin123"){
+admin = !admin;
+adminBtn.innerText = admin ? "Admin ON" : "Admin OFF";
+updateAdminUI();
+draw();
+}
 
 };
 
@@ -379,626 +387,56 @@ draw();
 
 function draw(){
 
-ctx.clearRect(
-0,
-0,
-canvas.width,
-canvas.height
-);
+ctx.clearRect(0,0,canvas.width,canvas.height);
 
 ctx.save();
-
-ctx.translate(
-offsetX,
-offsetY
-);
-
-ctx.scale(
-scale,
-scale
-);
+ctx.translate(offsetX,offsetY);
+ctx.scale(scale,scale);
 
 /* BACKGROUND */
-
 ctx.fillStyle="#151515";
-
-ctx.fillRect(
-0,
-0,
-WORLD_W,
-WORLD_H
-);
-
-/* BORDER */
-
-ctx.strokeStyle="#555";
-
-ctx.lineWidth=2/scale;
-
-ctx.strokeRect(
-0,
-0,
-WORLD_W,
-WORLD_H
-);
-
-/* GRID */
-
-if(scale >= 12){
-
-ctx.strokeStyle="#222";
-
-ctx.lineWidth=1/scale;
-
-for(let x=0;x<=WORLD_W;x++){
-
-ctx.beginPath();
-
-ctx.moveTo(x,0);
-
-ctx.lineTo(x,WORLD_H);
-
-ctx.stroke();
-
-}
-
-for(let y=0;y<=WORLD_H;y++){
-
-ctx.beginPath();
-
-ctx.moveTo(0,y);
-
-ctx.lineTo(WORLD_W,y);
-
-ctx.stroke();
-
-}
-
-}
+ctx.fillRect(0,0,WORLD_W,WORLD_H);
 
 /* BLOCKS */
+for(let b of blocks){
 
-for(let i=0;i<blocks.length;i++){
-
-const b = blocks[i];
-
-let img =
-imageCache[b.img];
-
-if(!img){
-
-img = new Image();
-
+let img = new Image();
 img.src = b.img;
 
-imageCache[b.img] = img;
-
-}
-
-if(img && img.complete){
-
-ctx.drawImage(
-
-img,
-
-Math.round(b.x),
-Math.round(b.y),
-
-Math.round(b.w),
-Math.round(b.h)
-
-);
-
-}
-
-if(i === selectedBlock){
-
-ctx.strokeStyle="red";
-
-ctx.lineWidth=3/scale;
-
-ctx.strokeRect(
-b.x,
-b.y,
-b.w,
-b.h
-);
-
-}
-
-}
-
-/* SELECTION */
-
-if(
-admin &&
-selectStart &&
-selectEnd
-){
-
-let x1 =
-snap(selectStart.x);
-
-let y1 =
-snap(selectStart.y);
-
-let x2 =
-snap(selectEnd.x);
-
-let y2 =
-snap(selectEnd.y);
-
-if(x2 < x1)[x1,x2]=[x2,x1];
-if(y2 < y1)[y1,y2]=[y2,y1];
-
-const w =
-(x2-x1)+1;
-
-const h =
-(y2-y1)+1;
-
-ctx.fillStyle =
-"rgba(0,150,255,0.25)";
-
-ctx.strokeStyle =
-"#00a8ff";
-
-ctx.lineWidth =
-2/scale;
-
-ctx.fillRect(
-x1,
-y1,
-w,
-h
-);
-
-ctx.strokeRect(
-x1,
-y1,
-w,
-h
-);
+ctx.drawImage(img,b.x,b.y,b.w,b.h);
 
 }
 
 /* HOVER */
-
 ctx.strokeStyle="#00ff88";
-
-ctx.lineWidth=2/scale;
-
-ctx.strokeRect(
-hoverPixelX,
-hoverPixelY,
-1,
-1
-);
-
-/* LOCKED */
-
-if(lockedPixel){
-
-ctx.strokeStyle="#ffcc00";
-
-ctx.lineWidth=3/scale;
-
-ctx.strokeRect(
-lockedPixel.x,
-lockedPixel.y,
-1,
-1
-);
-
-}
+ctx.strokeRect(hoverPixelX,hoverPixelY,1,1);
 
 ctx.restore();
 
 info.innerText =
-`Zoom ${(scale*100).toFixed(0)}% | Blocchi ${blocks.length}`;
+`Blocchi: ${blocks.length}`;
 
 }
 
-/* ================= ADMIN ================= */
+/* ================= INPUT ================= */
 
-adminBtn.onclick=()=>{
+canvas.addEventListener("mousemove",(e)=>{
 
-const p =
-prompt("Password admin");
+const rect = canvas.getBoundingClientRect();
 
-if(p==="admin123"){
-
-admin = !admin;
-
-adminBtn.innerText =
-admin
-? "Admin ON"
-: "Admin OFF";
-
-clearSelection();
-
-draw();
-
-}
-
-};
-
-/* ================= REMOVE ================= */
-
-removeBtn.onclick=()=>{
-
-if(selectedBlock >= 0){
-
-blocks.splice(
-selectedBlock,
-1
-);
-
-saveCloud();
-
-clearSelection();
-
-draw();
-
-}
-
-};
-
-/* ================= RESET ================= */
-
-resetBtn.onclick=()=>{
-
-scale = 1;
-
-centerWorld();
-
-clearSelection();
-
-lockedPixel = null;
-
-draw();
-
-};
-
-/* ================= MOUSE ================= */
-
-canvas.addEventListener(
-"mousedown",
-(e)=>{
-
-const pos =
-getPointerPos(e);
-
-if(admin){
-
-selectStart = {
-
-x:snap(pos.x),
-y:snap(pos.y)
-
-};
-
-selectEnd = {
-...selectStart
-};
-
-draw();
-
-return;
-
-}
-
-dragging = true;
-
-dragX = e.clientX;
-dragY = e.clientY;
-
-}
-);
-
-canvas.addEventListener(
-"mousemove",
-(e)=>{
-
-const pos =
-getPointerPos(e);
-
-hoverPixelX = snap(pos.x);
-hoverPixelY = snap(pos.y);
+hoverPixelX = Math.floor((e.clientX-rect.left-offsetX)/scale);
+hoverPixelY = Math.floor((e.clientY-rect.top-offsetY)/scale);
 
 coords.innerHTML = `
-
-<b>${lockedPixel ? 'PIXEL BLOCCATO' : 'PIXEL'}</b><br>
-
-X: ${lockedPixel ? lockedPixel.x : hoverPixelX}<br>
-Y: ${lockedPixel ? lockedPixel.y : hoverPixelY}<br>
-
-${admin && selectStart && selectEnd ? `
-
-<hr style="margin:8px 0;border-color:#333;">
-
-SELEZIONE<br>
-
-Da:
-${Math.min(selectStart.x,selectEnd.x)},
-${Math.min(selectStart.y,selectEnd.y)}
-
-<br>
-
-A:
-${Math.max(selectStart.x,selectEnd.x)},
-${Math.max(selectStart.y,selectEnd.y)}
-
-<br>
-
-W:
-${Math.abs(selectEnd.x-selectStart.x)+1}px
-
-<br>
-
-H:
-${Math.abs(selectEnd.y-selectStart.y)+1}px
-
-` : ''}
-
-<button id="copyCoordsBtn">
-Copia Coordinate
-</button>
-
+X: ${hoverPixelX}<br>
+Y: ${hoverPixelY}
 `;
 
-const copyBtn =
-document.getElementById("copyCoordsBtn");
-
-if(copyBtn){
-
-copyBtn.onclick = ()=>{
-
-const text = lockedPixel
-? `${lockedPixel.x},${lockedPixel.y}`
-: `${hoverPixelX},${hoverPixelY}`;
-
-navigator.clipboard.writeText(text);
-
-};
-
-}
-
-if(
-admin &&
-selectStart
-){
-
-selectEnd = {
-
-x:snap(pos.x),
-y:snap(pos.y)
-
-};
-
 draw();
-
-return;
-
-}
-
-if(dragging){
-
-offsetX +=
-e.clientX - dragX;
-
-offsetY +=
-e.clientY - dragY;
-
-dragX = e.clientX;
-dragY = e.clientY;
-
-draw();
-
-}
-
-}
-);
-
-canvas.addEventListener(
-"mouseup",
-()=>{
-
-dragging = false;
-
-if(
-admin &&
-selectStart &&
-selectEnd
-){
-
-setTimeout(()=>{
-
-imageInput.click();
-
-},50);
-
-}
-
-}
-);
-
-/* ================= CLICK ================= */
-
-canvas.addEventListener(
-"click",
-(e)=>{
-
-const pos =
-getPointerPos(e);
-
-lockedPixel = {
-
-x:snap(pos.x),
-y:snap(pos.y)
-
-};
-
-selectedBlock = -1;
-
-for(let i=0;i<blocks.length;i++){
-
-const b = blocks[i];
-
-if(
-
-pos.x >= b.x &&
-pos.x < b.x + b.w &&
-
-pos.y >= b.y &&
-pos.y < b.y + b.h
-
-){
-
-selectedBlock = i;
-
-}
-
-}
-
-updateUI();
-
-draw();
-
-}
-);
-
-/* ================= ZOOM ================= */
-
-canvas.addEventListener(
-"wheel",
-(e)=>{
-
-e.preventDefault();
-
-scale *=
-e.deltaY < 0
-? 1.1
-: 0.9;
-
-scale = Math.max(
-0.2,
-Math.min(100,scale)
-);
-
-draw();
-
-},
-{passive:false}
-);
-
-/* ================= UPLOAD ================= */
-
-imageInput.onchange = async (e)=>{
-
-const file =
-e.target.files[0];
-
-if(
-!file ||
-!selectStart ||
-!selectEnd
-)return;
-
-const form =
-new FormData();
-
-form.append(
-"file",
-file
-);
-
-form.append(
-"upload_preset",
-UPLOAD_PRESET
-);
-
-const res =
-await fetch(
-
-`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,
-
-{
-method:"POST",
-body:form
-}
-
-);
-
-const data =
-await res.json();
-
-if(!data.secure_url)
-return;
-
-let x1 =
-snap(selectStart.x);
-
-let y1 =
-snap(selectStart.y);
-
-let x2 =
-snap(selectEnd.x);
-
-let y2 =
-snap(selectEnd.y);
-
-if(x2<x1)[x1,x2]=[x2,x1];
-if(y2<y1)[y1,y2]=[y2,y1];
-
-const finalW =
-(x2 - x1) + 1;
-
-const finalH =
-(y2 - y1) + 1;
-
-blocks.push({
-
-img:data.secure_url,
-
-x:Math.round(x1),
-y:Math.round(y1),
-
-w:Math.round(finalW),
-h:Math.round(finalH)
 
 });
 
-saveCloud();
-
-clearSelection();
-
-draw();
-
-};
-
-/* ================= RESIZE ================= */
-
-window.addEventListener(
-"resize",
-()=>{
-
-canvas.width =
-innerWidth;
-
-canvas.height =
-innerHeight;
-
-centerWorld();
-
-draw();
-
-}
-);
-
 /* ================= INIT ================= */
-
-centerWorld();
 
 draw();
 
