@@ -30,18 +30,27 @@ z-index:9999;
 display:flex;
 gap:10px;
 align-items:center;
+flex-wrap:wrap;
 background:#1b1b1b;
 padding:10px;
 border-radius:10px;
 border:1px solid #333;
 }
 
-button{
+button,
+input{
+
 background:#222;
 color:#fff;
 border:1px solid #444;
+
 padding:8px 12px;
+
 border-radius:8px;
+
+}
+
+button{
 cursor:pointer;
 touch-action: manipulation;
 }
@@ -50,9 +59,45 @@ button:hover{
 background:#333;
 }
 
+input{
+width:80px;
+}
+
 #info{
 color:#fff;
 font-size:14px;
+}
+
+#coords{
+
+position:fixed;
+
+right:10px;
+top:10px;
+
+z-index:99999;
+
+background:#1b1b1b;
+
+border:1px solid #333;
+
+padding:12px;
+
+border-radius:10px;
+
+color:#fff;
+
+font-size:14px;
+
+min-width:220px;
+
+line-height:1.5;
+
+}
+
+#coords button{
+margin-top:8px;
+width:100%;
 }
 
 canvas{
@@ -72,13 +117,34 @@ cursor:grabbing;
 <body>
 
 <div id="toolbar">
+
 <button id="adminBtn">Admin</button>
-<button id="removeBtn" style="display:none;">Rimuovi</button>
+
+<button id="removeBtn" style="display:none;">
+Rimuovi
+</button>
+
 <button id="resetBtn">Reset</button>
+
+<input type="number" id="searchX" placeholder="X">
+<input type="number" id="searchY" placeholder="Y">
+
+<button id="gotoBtn">Vai</button>
+
 <div id="info"></div>
+
 </div>
 
-<input type="file" id="imageInput" accept="image/*" hidden>
+<div id="coords">
+Coordinate
+</div>
+
+<input
+type="file"
+id="imageInput"
+accept="image/*"
+hidden
+>
 
 <canvas id="canvas"></canvas>
 
@@ -111,21 +177,45 @@ const UPLOAD_PRESET = "pixelwall";
 
 /* ================= CANVAS ================= */
 
-const canvas = document.getElementById("canvas");
-const ctx = canvas.getContext("2d");
+const canvas =
+document.getElementById("canvas");
+
+const ctx =
+canvas.getContext("2d");
 
 ctx.imageSmoothingEnabled = false;
 
 canvas.width = innerWidth;
 canvas.height = innerHeight;
 
-/* ================= UI ================= */
+/* ================= DOM ================= */
 
-const adminBtn = document.getElementById("adminBtn");
-const removeBtn = document.getElementById("removeBtn");
-const resetBtn = document.getElementById("resetBtn");
-const imageInput = document.getElementById("imageInput");
-const info = document.getElementById("info");
+const adminBtn =
+document.getElementById("adminBtn");
+
+const removeBtn =
+document.getElementById("removeBtn");
+
+const resetBtn =
+document.getElementById("resetBtn");
+
+const imageInput =
+document.getElementById("imageInput");
+
+const info =
+document.getElementById("info");
+
+const coords =
+document.getElementById("coords");
+
+const searchX =
+document.getElementById("searchX");
+
+const searchY =
+document.getElementById("searchY");
+
+const gotoBtn =
+document.getElementById("gotoBtn");
 
 /* ================= WORLD ================= */
 
@@ -154,6 +244,11 @@ let selectEnd = null;
 let selectedBlock = -1;
 
 let blocks = [];
+
+let hoverPixelX = 0;
+let hoverPixelY = 0;
+
+let lockedPixel = null;
 
 /* ================= CACHE ================= */
 
@@ -217,6 +312,27 @@ return {x,y};
 
 }
 
+async function copyCoords(text){
+
+try{
+
+await navigator.clipboard.writeText(text);
+
+coords.innerHTML += `
+<br>
+<small style="color:#00ff88">
+Coordinate copiate
+</small>
+`;
+
+}catch(err){
+
+console.log(err);
+
+}
+
+}
+
 /* ================= FIREBASE ================= */
 
 db.collection("pixelwall")
@@ -241,6 +357,44 @@ blocks
 });
 
 }
+
+/* ================= GOTO ================= */
+
+gotoBtn.onclick = ()=>{
+
+const x =
+parseInt(searchX.value);
+
+const y =
+parseInt(searchY.value);
+
+if(
+isNaN(x) ||
+isNaN(y)
+)return;
+
+const targetX =
+clamp(x,0,WORLD_W-1);
+
+const targetY =
+clamp(y,0,WORLD_H-1);
+
+offsetX =
+canvas.width/2 -
+(targetX * scale);
+
+offsetY =
+canvas.height/2 -
+(targetY * scale);
+
+lockedPixel = {
+x:targetX,
+y:targetY
+};
+
+draw();
+
+};
 
 /* ================= DRAW ================= */
 
@@ -276,7 +430,7 @@ WORLD_W,
 WORLD_H
 );
 
-/* WORLD BORDER */
+/* BORDER */
 
 ctx.strokeStyle="#555";
 
@@ -297,39 +451,25 @@ ctx.strokeStyle="#222";
 
 ctx.lineWidth=1/scale;
 
-for(
-let x=0;
-x<=WORLD_W;
-x+=CELL
-){
+for(let x=0;x<=WORLD_W;x++){
 
 ctx.beginPath();
 
 ctx.moveTo(x,0);
 
-ctx.lineTo(
-x,
-WORLD_H
-);
+ctx.lineTo(x,WORLD_H);
 
 ctx.stroke();
 
 }
 
-for(
-let y=0;
-y<=WORLD_H;
-y+=CELL
-){
+for(let y=0;y<=WORLD_H;y++){
 
 ctx.beginPath();
 
 ctx.moveTo(0,y);
 
-ctx.lineTo(
-WORLD_W,
-y
-);
+ctx.lineTo(WORLD_W,y);
 
 ctx.stroke();
 
@@ -339,11 +479,7 @@ ctx.stroke();
 
 /* BLOCKS */
 
-for(
-let i=0;
-i<blocks.length;
-i++
-){
+for(let i=0;i<blocks.length;i++){
 
 const b = blocks[i];
 
@@ -360,10 +496,7 @@ imageCache[b.img] = img;
 
 }
 
-if(
-img &&
-img.complete
-){
+if(img && img.complete){
 
 ctx.drawImage(
 
@@ -378,8 +511,6 @@ Math.round(b.h)
 );
 
 }
-
-/* SELECTED */
 
 if(i === selectedBlock){
 
@@ -448,6 +579,36 @@ x1,
 y1,
 w,
 h
+);
+
+}
+
+/* HOVER */
+
+ctx.strokeStyle="#00ff88";
+
+ctx.lineWidth=2/scale;
+
+ctx.strokeRect(
+hoverPixelX,
+hoverPixelY,
+1,
+1
+);
+
+/* LOCKED */
+
+if(lockedPixel){
+
+ctx.strokeStyle="#ffcc00";
+
+ctx.lineWidth=3/scale;
+
+ctx.strokeRect(
+lockedPixel.x,
+lockedPixel.y,
+1,
+1
 );
 
 }
@@ -561,6 +722,28 @@ canvas.addEventListener(
 const pos =
 getPointerPos(e);
 
+hoverPixelX = snap(pos.x);
+hoverPixelY = snap(pos.y);
+
+if(!lockedPixel){
+
+coords.innerHTML = `
+
+<b>PIXEL</b><br>
+
+X: ${hoverPixelX}<br>
+Y: ${hoverPixelY}<br>
+
+<button onclick="
+copyCoords('${hoverPixelX},${hoverPixelY}')
+">
+Copia Coordinate
+</button>
+
+`;
+
+}
+
 if(
 admin &&
 selectStart
@@ -629,13 +812,31 @@ canvas.addEventListener(
 const pos =
 getPointerPos(e);
 
+lockedPixel = {
+
+x:snap(pos.x),
+y:snap(pos.y)
+
+};
+
+coords.innerHTML = `
+
+<b>PIXEL BLOCCATO</b><br>
+
+X: ${lockedPixel.x}<br>
+Y: ${lockedPixel.y}<br>
+
+<button onclick="
+copyCoords('${lockedPixel.x},${lockedPixel.y}')
+">
+Copia Coordinate
+</button>
+
+`;
+
 selectedBlock = -1;
 
-for(
-let i=0;
-i<blocks.length;
-i++
-){
+for(let i=0;i<blocks.length;i++){
 
 const b = blocks[i];
 
@@ -772,6 +973,9 @@ e.touches[0];
 
 const pos =
 getPointerPos(t);
+
+hoverPixelX = snap(pos.x);
+hoverPixelY = snap(pos.y);
 
 if(e.touches.length === 1){
 
