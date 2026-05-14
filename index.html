@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Pixel Wall FULL</title>
+<title>Pixel Wall Full System</title>
 
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
@@ -20,7 +20,8 @@ top:10px;
 left:10px;
 z-index:9999;
 display:flex;
-gap:10px;
+flex-wrap:wrap;
+gap:8px;
 align-items:center;
 background:#1b1b1b;
 padding:10px;
@@ -32,9 +33,18 @@ button{
 background:#222;
 color:#fff;
 border:1px solid #444;
-padding:8px 12px;
-border-radius:8px;
+padding:6px 10px;
+border-radius:6px;
 cursor:pointer;
+}
+
+input{
+padding:4px;
+background:#111;
+color:#fff;
+border:1px solid #333;
+border-radius:5px;
+font-size:12px;
 }
 
 #coords{
@@ -64,6 +74,17 @@ canvas:active{cursor:grabbing;}
 <button id="adminBtn">Admin</button>
 <button id="removeBtn" style="display:none;">Rimuovi</button>
 <button id="resetBtn">Reset</button>
+
+<!-- MANUALE -->
+<span id="manual" style="display:none;gap:4px;align-items:center;">
+<input id="mx" placeholder="x">
+<input id="my" placeholder="y">
+<input id="mw" placeholder="w">
+<input id="mh" placeholder="h">
+<input id="murl" placeholder="url">
+<button id="addManual">OK</button>
+</span>
+
 </div>
 
 <div id="coords">X:0 Y:0</div>
@@ -82,7 +103,6 @@ apiKey:"AIzaSyDFPiQn3Uq7_OA0e7UxNoeze8z_EfndwsU",
 authDomain:"pixel-wall-ff621.firebaseapp.com",
 projectId:"pixel-wall-ff621"
 });
-
 const db=firebase.firestore();
 
 /* ================= CLOUDINARY ================= */
@@ -124,7 +144,7 @@ blocks=d.data()?.blocks||[];
 
 /* ================= SAVE ================= */
 function save(){
-db.collection("pixelwall").doc("main").set({blocks},{merge:true});
+db.collection("pixelwall").doc("main").set({blocks});
 }
 
 /* ================= CENTER ================= */
@@ -133,7 +153,7 @@ ox=(c.width-W*scale)/2;
 oy=(c.height-H*scale)/2;
 }
 
-/* ================= WORLD POS ================= */
+/* ================= POS ================= */
 function pos(e){
 const r=c.getBoundingClientRect();
 return{
@@ -142,7 +162,7 @@ y:(e.clientY-r.top-oy)/scale
 };
 }
 
-/* ================= DRAW GRID ================= */
+/* ================= DRAW ================= */
 function draw(){
 
 ctx.clearRect(0,0,c.width,c.height);
@@ -155,7 +175,7 @@ ctx.scale(scale,scale);
 ctx.fillStyle="#151515";
 ctx.fillRect(0,0,W,H);
 
-/* GRID */
+/* grid */
 ctx.strokeStyle="#222";
 ctx.lineWidth=1/scale;
 
@@ -173,16 +193,16 @@ ctx.lineTo(W,y);
 ctx.stroke();
 }
 
-/* selection preview */
+/* selection */
 if(admin && selStart && selEnd){
-ctx.fillStyle="rgba(0,150,255,0.25)";
-ctx.strokeStyle="#00aaff";
 
 let x1=Math.min(selStart.x,selEnd.x);
 let y1=Math.min(selStart.y,selEnd.y);
 let x2=Math.max(selStart.x,selEnd.x);
 let y2=Math.max(selStart.y,selEnd.y);
 
+ctx.fillStyle="rgba(0,150,255,0.25)";
+ctx.strokeStyle="#00aaff";
 ctx.fillRect(x1,y1,x2-x1,y2-y1);
 ctx.strokeRect(x1,y1,x2-x1,y2-y1);
 }
@@ -198,7 +218,7 @@ cache[b.img]=img;
 
 let img=cache[b.img];
 
-if(img.complete){
+if(img && img.complete){
 ctx.drawImage(img,b.x,b.y,b.w,b.h);
 }
 
@@ -221,8 +241,7 @@ requestAnimationFrame(loop);
 loop();
 
 /* ================= PAN ================= */
-let drag=false;
-let lx=0,ly=0;
+let drag=false,lx=0,ly=0;
 
 c.addEventListener("mousedown",e=>{
 drag=true;
@@ -250,18 +269,13 @@ ly=e.clientY;
 if(admin && selStart){
 selEnd=pos(e);
 }
-
 });
 
 c.addEventListener("mouseup",()=>{
-
 drag=false;
-
-/* upload trigger */
 if(admin && selStart && selEnd){
 document.getElementById("file").click();
 }
-
 });
 
 /* ================= ZOOM ================= */
@@ -273,7 +287,6 @@ scale=Math.max(0.2,Math.min(50,scale));
 
 /* ================= SELECT ================= */
 c.addEventListener("click",e=>{
-
 let p=pos(e);
 selected=null;
 
@@ -284,7 +297,6 @@ selected=b.id;
 break;
 }
 }
-
 });
 
 /* ================= ADMIN ================= */
@@ -292,6 +304,7 @@ document.getElementById("adminBtn").onclick=()=>{
 if(prompt("admin")==="admin123"){
 admin=!admin;
 document.getElementById("removeBtn").style.display=admin?"block":"none";
+document.getElementById("manual").style.display=admin?"flex":"none";
 }
 };
 
@@ -306,6 +319,23 @@ save();
 document.getElementById("resetBtn").onclick=()=>{
 scale=1;
 center();
+};
+
+/* ================= MANUALE ================= */
+document.getElementById("addManual").onclick=()=>{
+
+if(!admin) return;
+
+blocks.push({
+id:Date.now(),
+img:document.getElementById("murl").value,
+x:parseInt(document.getElementById("mx").value),
+y:parseInt(document.getElementById("my").value),
+w:parseInt(document.getElementById("mw").value),
+h:parseInt(document.getElementById("mh").value)
+});
+
+save();
 };
 
 /* ================= UPLOAD ================= */
@@ -335,7 +365,6 @@ h:Math.abs(selEnd.y-selStart.y)
 });
 
 save();
-
 selStart=null;
 selEnd=null;
 
