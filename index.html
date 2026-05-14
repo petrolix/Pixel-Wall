@@ -2,8 +2,8 @@
 <html lang="it">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Pixel Wall Stable</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Pixel Wall FULL</title>
 
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
@@ -52,7 +52,9 @@ canvas{
 display:block;
 touch-action:none;
 image-rendering:pixelated;
+cursor:grab;
 }
+canvas:active{cursor:grabbing;}
 </style>
 </head>
 
@@ -66,6 +68,7 @@ image-rendering:pixelated;
 
 <div id="coords">X:0 Y:0</div>
 
+<input type="file" id="file" hidden>
 <canvas id="c"></canvas>
 
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
@@ -82,6 +85,13 @@ projectId:"pixel-wall-ff621"
 
 const db=firebase.firestore();
 
+/* ================= CLOUDINARY ================= */
+const CLOUD="dkwijnvsl";
+const PRESET="pixelwall";
+
+/* ================= WORLD ================= */
+const W=1280,H=720;
+
 /* ================= CANVAS ================= */
 const c=document.getElementById("c");
 const ctx=c.getContext("2d");
@@ -93,23 +103,29 @@ c.height=innerHeight;
 }
 resize();
 
-/* ================= WORLD ================= */
-const W=1280,H=720;
-
 /* ================= STATE ================= */
 let scale=1;
 let ox=0,oy=0;
-let blocks=[];
-let selected=null;
-let admin=false;
 
-/* ================= CACHE IMMAGINI ================= */
+let blocks=[];
+let admin=false;
+let selected=null;
+
+let selStart=null;
+let selEnd=null;
+
+/* ================= CACHE ================= */
 const cache={};
 
-/* ================= FIREBASE LOAD ================= */
+/* ================= FIREBASE ================= */
 db.collection("pixelwall").doc("main").onSnapshot(d=>{
 blocks=d.data()?.blocks||[];
 });
+
+/* ================= SAVE ================= */
+function save(){
+db.collection("pixelwall").doc("main").set({blocks},{merge:true});
+}
 
 /* ================= CENTER ================= */
 function center(){
@@ -117,7 +133,7 @@ ox=(c.width-W*scale)/2;
 oy=(c.height-H*scale)/2;
 }
 
-/* ================= POINTER ================= */
+/* ================= WORLD POS ================= */
 function pos(e){
 const r=c.getBoundingClientRect();
 return{
@@ -126,7 +142,7 @@ y:(e.clientY-r.top-oy)/scale
 };
 }
 
-/* ================= RENDER LOOP (FIX VERO) ================= */
+/* ================= DRAW GRID ================= */
 function draw(){
 
 ctx.clearRect(0,0,c.width,c.height);
@@ -139,21 +155,50 @@ ctx.scale(scale,scale);
 ctx.fillStyle="#151515";
 ctx.fillRect(0,0,W,H);
 
+/* GRID */
+ctx.strokeStyle="#222";
+ctx.lineWidth=1/scale;
+
+for(let x=0;x<=W;x++){
+ctx.beginPath();
+ctx.moveTo(x,0);
+ctx.lineTo(x,H);
+ctx.stroke();
+}
+
+for(let y=0;y<=H;y++){
+ctx.beginPath();
+ctx.moveTo(0,y);
+ctx.lineTo(W,y);
+ctx.stroke();
+}
+
+/* selection preview */
+if(admin && selStart && selEnd){
+ctx.fillStyle="rgba(0,150,255,0.25)";
+ctx.strokeStyle="#00aaff";
+
+let x1=Math.min(selStart.x,selEnd.x);
+let y1=Math.min(selStart.y,selEnd.y);
+let x2=Math.max(selStart.x,selEnd.x);
+let y2=Math.max(selStart.y,selEnd.y);
+
+ctx.fillRect(x1,y1,x2-x1,y2-y1);
+ctx.strokeRect(x1,y1,x2-x1,y2-y1);
+}
+
 /* blocks */
 for(let b of blocks){
 
 if(!cache[b.img]){
-const img=new Image();
+let img=new Image();
 img.src=b.img;
-
-/* 🔥 FORZA REDRAW QUANDO CARICA */
-img.onload=()=>{};
 cache[b.img]=img;
 }
 
-const img=cache[b.img];
+let img=cache[b.img];
 
-if(img && img.complete && img.naturalWidth>0){
+if(img.complete){
 ctx.drawImage(img,b.x,b.y,b.w,b.h);
 }
 
@@ -166,10 +211,9 @@ ctx.strokeRect(b.x,b.y,b.w,b.h);
 }
 
 ctx.restore();
-
 }
 
-/* ================= CONTINUOUS LOOP ================= */
+/* ================= LOOP ================= */
 function loop(){
 draw();
 requestAnimationFrame(loop);
@@ -177,13 +221,18 @@ requestAnimationFrame(loop);
 loop();
 
 /* ================= PAN ================= */
-let dragging=false;
+let drag=false;
 let lx=0,ly=0;
 
 c.addEventListener("mousedown",e=>{
-dragging=true;
+drag=true;
 lx=e.clientX;
 ly=e.clientY;
+
+if(admin){
+selStart=pos(e);
+selEnd=selStart;
+}
 });
 
 c.addEventListener("mousemove",e=>{
@@ -191,15 +240,29 @@ c.addEventListener("mousemove",e=>{
 document.getElementById("coords").innerText=
 `X:${Math.floor(pos(e).x)} Y:${Math.floor(pos(e).y)}`;
 
-if(dragging){
+if(drag && !admin){
 ox+=e.clientX-lx;
 oy+=e.clientY-ly;
 lx=e.clientX;
 ly=e.clientY;
 }
+
+if(admin && selStart){
+selEnd=pos(e);
+}
+
 });
 
-c.addEventListener("mouseup",()=>dragging=false);
+c.addEventListener("mouseup",()=>{
+
+drag=false;
+
+/* upload trigger */
+if(admin && selStart && selEnd){
+document.getElementById("file").click();
+}
+
+});
 
 /* ================= ZOOM ================= */
 c.addEventListener("wheel",e=>{
@@ -210,6 +273,7 @@ scale=Math.max(0.2,Math.min(50,scale));
 
 /* ================= SELECT ================= */
 c.addEventListener("click",e=>{
+
 let p=pos(e);
 selected=null;
 
@@ -220,6 +284,7 @@ selected=b.id;
 break;
 }
 }
+
 });
 
 /* ================= ADMIN ================= */
@@ -230,14 +295,11 @@ document.getElementById("removeBtn").style.display=admin?"block":"none";
 }
 };
 
-/* ================= REMOVE FIX ================= */
+/* ================= REMOVE ================= */
 document.getElementById("removeBtn").onclick=()=>{
-
 blocks=blocks.filter(b=>b.id!==selected);
 selected=null;
-
-db.collection("pixelwall").doc("main").set({blocks});
-
+save();
 };
 
 /* ================= RESET ================= */
@@ -246,12 +308,48 @@ scale=1;
 center();
 };
 
+/* ================= UPLOAD ================= */
+document.getElementById("file").onchange=async(e)=>{
+
+const file=e.target.files[0];
+if(!file||!selStart||!selEnd)return;
+
+const form=new FormData();
+form.append("file",file);
+form.append("upload_preset",PRESET);
+
+const res=await fetch(
+`https://api.cloudinary.com/v1_1/${CLOUD}/image/upload`,
+{method:"POST",body:form}
+);
+
+const data=await res.json();
+
+blocks.push({
+id:Date.now(),
+img:data.secure_url,
+x:Math.min(selStart.x,selEnd.x),
+y:Math.min(selStart.y,selEnd.y),
+w:Math.abs(selEnd.x-selStart.x),
+h:Math.abs(selEnd.y-selStart.y)
+});
+
+save();
+
+selStart=null;
+selEnd=null;
+
+};
+
+/* ================= INIT ================= */
+center();
+draw();
+
 window.addEventListener("resize",()=>{
 resize();
 center();
+draw();
 });
-
-center();
 
 </script>
 
