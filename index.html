@@ -1,385 +1,273 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Pixel Wall Full System</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pixel Wall Hybrid System</title>
 
-<style>
-*{margin:0;padding:0;box-sizing:border-box;}
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box;}
+        body{ overflow:hidden; background:#0f0f0f; font-family:Arial; }
 
-body{
-overflow:hidden;
-background:#0f0f0f;
-font-family:Arial;
-}
+        #toolbar{
+            position:fixed; top:10px; left:10px; z-index:9999;
+            display:flex; flex-wrap:wrap; gap:8px; align-items:center;
+            background:#1b1b1b; padding:10px; border-radius:10px; border:1px solid #333;
+        }
 
-#toolbar{
-position:fixed;
-top:10px;
-left:10px;
-z-index:9999;
-display:flex;
-flex-wrap:wrap;
-gap:8px;
-align-items:center;
-background:#1b1b1b;
-padding:10px;
-border-radius:10px;
-border:1px solid #333;
-}
+        button, input{
+            background:#222; color:#fff; border:1px solid #444;
+            padding:8px 12px; border-radius:8px; font-size:13px;
+        }
+        button{cursor:pointer;}
+        button:hover{background:#333;}
 
-button{
-background:#222;
-color:#fff;
-border:1px solid #444;
-padding:6px 10px;
-border-radius:6px;
-cursor:pointer;
-}
+        #coords{
+            position:fixed; top:10px; right:10px; background:#111;
+            color:#fff; padding:10px; font-size:12px; border-radius:8px;
+            border:1px solid #333; min-width:80px; text-align:center;
+        }
 
-input{
-padding:4px;
-background:#111;
-color:#fff;
-border:1px solid #333;
-border-radius:5px;
-font-size:12px;
-}
+        #manualPanel {
+            position:fixed; left:50%; top:50%; transform:translate(-50%,-50%);
+            background:#1b1b1b; border:1px solid #333; padding:20px;
+            border-radius:10px; display:none; flex-direction:column; gap:10px; z-index:10000;
+        }
 
-#coords{
-position:fixed;
-top:10px;
-right:10px;
-background:#111;
-color:#fff;
-padding:8px;
-font-size:12px;
-border-radius:6px;
-}
-
-canvas{
-display:block;
-touch-action:none;
-image-rendering:pixelated;
-cursor:grab;
-}
-canvas:active{cursor:grabbing;}
-</style>
+        canvas{ display:block; touch-action:none; image-rendering:pixelated; cursor:grab; }
+        canvas:active{cursor:grabbing;}
+    </style>
 </head>
-
 <body>
 
 <div id="toolbar">
-<button id="adminBtn">Admin</button>
-<button id="removeBtn" style="display:none;">Rimuovi</button>
-<button id="resetBtn">Reset</button>
-
-<!-- MANUALE -->
-<span id="manual" style="display:none;gap:4px;align-items:center;">
-<input id="mx" placeholder="x">
-<input id="my" placeholder="y">
-<input id="mw" placeholder="w">
-<input id="mh" placeholder="h">
-<input id="murl" placeholder="url">
-<button id="addManual">OK</button>
-</span>
-
+    <button id="adminBtn">Admin</button>
+    <button id="removeBtn" style="display:none;">Rimuovi</button>
+    <button id="resetBtn">Reset</button>
+    <button id="manualBtn" style="display:none;">Nuovo Blocco</button>
 </div>
 
 <div id="coords">X:0 Y:0</div>
 
-<input type="file" id="file" hidden>
+<div id="manualPanel">
+    <h3 style="color:white; margin-bottom:5px;">Inserimento Manuale</h3>
+    <input id="mx" type="number" placeholder="Coordinata X">
+    <input id="my" type="number" placeholder="Coordinata Y">
+    <input id="mw" type="number" placeholder="Larghezza (W)">
+    <input id="mh" type="number" placeholder="Altezza (H)">
+    <input type="file" id="fileInput">
+    <button id="confirmAdd" style="background:#0066cc;">Inserisci</button>
+    <button id="closePanel">Chiudi</button>
+</div>
+
 <canvas id="c"></canvas>
 
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 
 <script>
-
-/* ================= FIREBASE ================= */
+/* ================= CONFIGURAZIONE ================= */
 firebase.initializeApp({
-apiKey:"AIzaSyDFPiQn3Uq7_OA0e7UxNoeze8z_EfndwsU",
-authDomain:"pixel-wall-ff621.firebaseapp.com",
-projectId:"pixel-wall-ff621"
+    apiKey:"AIzaSyDFPiQn3Uq7_OA0e7UxNoeze8z_EfndwsU",
+    authDomain:"pixel-wall-ff621.firebaseapp.com",
+    projectId:"pixel-wall-ff621"
 });
-const db=firebase.firestore();
+const db = firebase.firestore();
+const CLOUD = "dkwijnvsl";
+const PRESET = "pixelwall";
+const W=1280, H=720;
 
-/* ================= CLOUDINARY ================= */
-const CLOUD="dkwijnvsl";
-const PRESET="pixelwall";
+/* ================= STATO & CANVAS ================= */
+const c = document.getElementById("c");
+const ctx = c.getContext("2d");
+ctx.imageSmoothingEnabled = false;
 
-/* ================= WORLD ================= */
-const W=1280,H=720;
+let scale = 1, ox = 0, oy = 0;
+let blocks = [], admin = false, selectedId = null;
+const cache = {};
 
-/* ================= CANVAS ================= */
-const c=document.getElementById("c");
-const ctx=c.getContext("2d");
-ctx.imageSmoothingEnabled=false;
-
-function resize(){
-c.width=innerWidth;
-c.height=innerHeight;
+function resize() {
+    c.width = innerWidth;
+    c.height = innerHeight;
 }
 resize();
 
-/* ================= STATE ================= */
-let scale=1;
-let ox=0,oy=0;
-
-let blocks=[];
-let admin=false;
-let selected=null;
-
-let selStart=null;
-let selEnd=null;
-
-/* ================= CACHE ================= */
-const cache={};
-
-/* ================= FIREBASE ================= */
-db.collection("pixelwall").doc("main").onSnapshot(d=>{
-blocks=d.data()?.blocks||[];
+/* ================= LOGICA RENDERING (Stile 14/05) ================= */
+db.collection("pixelwall").doc("main").onSnapshot(d => {
+    blocks = d.data()?.blocks || [];
 });
 
-/* ================= SAVE ================= */
-function save(){
-db.collection("pixelwall").doc("main").set({blocks});
+function draw() {
+    ctx.clearRect(0, 0, c.width, c.height);
+    ctx.save();
+    ctx.translate(ox, oy);
+    ctx.scale(scale, scale);
+
+    // Sfondo e Griglia
+    ctx.fillStyle = "#151515";
+    ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = "#222";
+    ctx.lineWidth = 1/scale;
+    for(let x=0; x<=W; x++) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+    for(let y=0; y<=H; y++) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+
+    // Disegno Blocchi con Cache
+    for(let b of blocks) {
+        if(!cache[b.img]) {
+            let img = new Image();
+            img.src = b.img;
+            cache[b.img] = img;
+        }
+        let img = cache[b.img];
+        if(img && img.complete) {
+            ctx.drawImage(img, b.x, b.y, b.w, b.h);
+        }
+        if(b.id === selectedId) {
+            ctx.strokeStyle = "red";
+            ctx.lineWidth = 2/scale;
+            ctx.strokeRect(b.x, b.y, b.w, b.h);
+        }
+    }
+    ctx.restore();
 }
 
-/* ================= CENTER ================= */
-function center(){
-ox=(c.width-W*scale)/2;
-oy=(c.height-H*scale)/2;
-}
-
-/* ================= POS ================= */
-function pos(e){
-const r=c.getBoundingClientRect();
-return{
-x:(e.clientX-r.left-ox)/scale,
-y:(e.clientY-r.top-oy)/scale
-};
-}
-
-/* ================= DRAW ================= */
-function draw(){
-
-ctx.clearRect(0,0,c.width,c.height);
-
-ctx.save();
-ctx.translate(ox,oy);
-ctx.scale(scale,scale);
-
-/* background */
-ctx.fillStyle="#151515";
-ctx.fillRect(0,0,W,H);
-
-/* grid */
-ctx.strokeStyle="#222";
-ctx.lineWidth=1/scale;
-
-for(let x=0;x<=W;x++){
-ctx.beginPath();
-ctx.moveTo(x,0);
-ctx.lineTo(x,H);
-ctx.stroke();
-}
-
-for(let y=0;y<=H;y++){
-ctx.beginPath();
-ctx.moveTo(0,y);
-ctx.lineTo(W,y);
-ctx.stroke();
-}
-
-/* selection */
-if(admin && selStart && selEnd){
-
-let x1=Math.min(selStart.x,selEnd.x);
-let y1=Math.min(selStart.y,selEnd.y);
-let x2=Math.max(selStart.x,selEnd.x);
-let y2=Math.max(selStart.y,selEnd.y);
-
-ctx.fillStyle="rgba(0,150,255,0.25)";
-ctx.strokeStyle="#00aaff";
-ctx.fillRect(x1,y1,x2-x1,y2-y1);
-ctx.strokeRect(x1,y1,x2-x1,y2-y1);
-}
-
-/* blocks */
-for(let b of blocks){
-
-if(!cache[b.img]){
-let img=new Image();
-img.src=b.img;
-cache[b.img]=img;
-}
-
-let img=cache[b.img];
-
-if(img && img.complete){
-ctx.drawImage(img,b.x,b.y,b.w,b.h);
-}
-
-if(b.id===selected){
-ctx.strokeStyle="red";
-ctx.lineWidth=2/scale;
-ctx.strokeRect(b.x,b.y,b.w,b.h);
-}
-
-}
-
-ctx.restore();
-}
-
-/* ================= LOOP ================= */
-function loop(){
-draw();
-requestAnimationFrame(loop);
+function loop() {
+    draw();
+    requestAnimationFrame(loop);
 }
 loop();
 
-/* ================= PAN ================= */
-let drag=false,lx=0,ly=0;
-
-c.addEventListener("mousedown",e=>{
-drag=true;
-lx=e.clientX;
-ly=e.clientY;
-
-if(admin){
-selStart=pos(e);
-selEnd=selStart;
-}
-});
-
-c.addEventListener("mousemove",e=>{
-
-document.getElementById("coords").innerText=
-`X:${Math.floor(pos(e).x)} Y:${Math.floor(pos(e).y)}`;
-
-if(drag && !admin){
-ox+=e.clientX-lx;
-oy+=e.clientY-ly;
-lx=e.clientX;
-ly=e.clientY;
+/* ================= UTILS ================= */
+function getPos(e) {
+    const r = c.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    return {
+        x: (clientX - r.left - ox) / scale,
+        y: (clientY - r.top - oy) / scale
+    };
 }
 
-if(admin && selStart){
-selEnd=pos(e);
+function center() {
+    ox = (c.width - W * scale) / 2;
+    oy = (c.height - H * scale) / 2;
 }
-});
-
-c.addEventListener("mouseup",()=>{
-drag=false;
-if(admin && selStart && selEnd){
-document.getElementById("file").click();
-}
-});
-
-/* ================= ZOOM ================= */
-c.addEventListener("wheel",e=>{
-e.preventDefault();
-scale*=e.deltaY<0?1.1:0.9;
-scale=Math.max(0.2,Math.min(50,scale));
-});
-
-/* ================= SELECT ================= */
-c.addEventListener("click",e=>{
-let p=pos(e);
-selected=null;
-
-for(let i=blocks.length-1;i>=0;i--){
-let b=blocks[i];
-if(p.x>=b.x&&p.x<=b.x+b.w&&p.y>=b.y&&p.y<=b.y+b.h){
-selected=b.id;
-break;
-}
-}
-});
-
-/* ================= ADMIN ================= */
-document.getElementById("adminBtn").onclick=()=>{
-if(prompt("admin")==="admin123"){
-admin=!admin;
-document.getElementById("removeBtn").style.display=admin?"block":"none";
-document.getElementById("manual").style.display=admin?"flex":"none";
-}
-};
-
-/* ================= REMOVE ================= */
-document.getElementById("removeBtn").onclick=()=>{
-blocks=blocks.filter(b=>b.id!==selected);
-selected=null;
-save();
-};
-
-/* ================= RESET ================= */
-document.getElementById("resetBtn").onclick=()=>{
-scale=1;
 center();
-};
 
-/* ================= MANUALE ================= */
-document.getElementById("addManual").onclick=()=>{
+/* ================= INPUT & ZOOM (Stile 13/05 + Mobile) ================= */
+let dragging = false, lx = 0, ly = 0;
+let pinchDist = 0, pinchScale = 1;
 
-if(!admin) return;
-
-blocks.push({
-id:Date.now(),
-img:document.getElementById("murl").value,
-x:parseInt(document.getElementById("mx").value),
-y:parseInt(document.getElementById("my").value),
-w:parseInt(document.getElementById("mw").value),
-h:parseInt(document.getElementById("mh").value)
+// Mouse Events
+c.addEventListener("mousedown", e => {
+    dragging = true;
+    lx = e.clientX; ly = e.clientY;
 });
 
-save();
-};
-
-/* ================= UPLOAD ================= */
-document.getElementById("file").onchange=async(e)=>{
-
-const file=e.target.files[0];
-if(!file||!selStart||!selEnd)return;
-
-const form=new FormData();
-form.append("file",file);
-form.append("upload_preset",PRESET);
-
-const res=await fetch(
-`https://api.cloudinary.com/v1_1/${CLOUD}/image/upload`,
-{method:"POST",body:form}
-);
-
-const data=await res.json();
-
-blocks.push({
-id:Date.now(),
-img:data.secure_url,
-x:Math.min(selStart.x,selEnd.x),
-y:Math.min(selStart.y,selEnd.y),
-w:Math.abs(selEnd.x-selStart.x),
-h:Math.abs(selEnd.y-selStart.y)
+window.addEventListener("mousemove", e => {
+    const p = getPos(e);
+    document.getElementById("coords").innerText = `X:${Math.floor(p.x)} Y:${Math.floor(p.y)}`;
+    
+    if(dragging) {
+        ox += e.clientX - lx;
+        oy += e.clientY - ly;
+        lx = e.clientX; ly = e.clientY;
+    }
 });
 
-save();
-selStart=null;
-selEnd=null;
+window.addEventListener("mouseup", () => dragging = false);
 
-};
+// Zoom (Mouse)
+c.addEventListener("wheel", e => {
+    e.preventDefault();
+    scale *= e.deltaY < 0 ? 1.1 : 0.9;
+    scale = Math.max(0.1, Math.min(50, scale));
+}, {passive: false});
 
-/* ================= INIT ================= */
-center();
-draw();
+// Touch Events (Mobile 13/05)
+c.addEventListener("touchstart", e => {
+    if(e.touches.length === 1) {
+        dragging = true;
+        lx = e.touches[0].clientX; ly = e.touches[0].clientY;
+    } else if(e.touches.length === 2) {
+        pinchDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+        pinchScale = scale;
+    }
+}, {passive: true});
 
-window.addEventListener("resize",()=>{
-resize();
-center();
-draw();
+c.addEventListener("touchmove", e => {
+    if(e.touches.length === 1 && dragging) {
+        ox += e.touches[0].clientX - lx;
+        oy += e.touches[0].clientY - ly;
+        lx = e.touches[0].clientX; ly = e.touches[0].clientY;
+    } else if(e.touches.length === 2) {
+        const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+        scale = Math.max(0.1, Math.min(50, pinchScale * (d / pinchDist)));
+    }
+}, {passive: false});
+
+c.addEventListener("touchend", () => dragging = false);
+
+// Selezione Blocco
+c.addEventListener("click", e => {
+    if(dragging) return;
+    const p = getPos(e);
+    selectedId = null;
+    for(let i=blocks.length-1; i>=0; i--) {
+        let b = blocks[i];
+        if(p.x>=b.x && p.x<=b.x+b.w && p.y>=b.y && p.y<=b.y+b.h) {
+            selectedId = b.id;
+            break;
+        }
+    }
 });
 
+/* ================= GESTIONE ADMIN & MANUALE ================= */
+document.getElementById("adminBtn").onclick = () => {
+    if(prompt("Password Admin:") === "admin123") {
+        admin = !admin;
+        document.getElementById("removeBtn").style.display = admin ? "block" : "none";
+        document.getElementById("manualBtn").style.display = admin ? "block" : "none";
+    }
+};
+
+const panel = document.getElementById("manualPanel");
+document.getElementById("manualBtn").onclick = () => panel.style.display = "flex";
+document.getElementById("closePanel").onclick = () => panel.style.display = "none";
+
+document.getElementById("confirmAdd").onclick = async () => {
+    const file = document.getElementById("fileInput").files[0];
+    if(!file) return alert("Seleziona un'immagine!");
+
+    const form = new FormData();
+    form.append("file", file);
+    form.append("upload_preset", PRESET);
+
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD}/image/upload`, { method: "POST", body: form });
+    const data = await res.json();
+
+    blocks.push({
+        id: Date.now(),
+        img: data.secure_url,
+        x: parseInt(document.getElementById("mx").value) || 0,
+        y: parseInt(document.getElementById("my").value) || 0,
+        w: parseInt(document.getElementById("mw").value) || 100,
+        h: parseInt(document.getElementById("mh").value) || 100
+    });
+
+    db.collection("pixelwall").doc("main").set({blocks});
+    panel.style.display = "none";
+};
+
+document.getElementById("removeBtn").onclick = () => {
+    blocks = blocks.filter(b => b.id !== selectedId);
+    selectedId = null;
+    db.collection("pixelwall").doc("main").set({blocks});
+};
+
+document.getElementById("resetBtn").onclick = () => { scale = 1; center(); };
+
+window.addEventListener("resize", () => { resize(); center(); });
 </script>
 
 </body>
