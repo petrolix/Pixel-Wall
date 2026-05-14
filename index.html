@@ -2,8 +2,8 @@
 <html lang="it">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Pixel Wall FULL FIX</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pixel Wall Stable</title>
 
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
@@ -22,59 +22,37 @@ z-index:9999;
 display:flex;
 gap:10px;
 align-items:center;
-flex-wrap:wrap;
 background:#1b1b1b;
 padding:10px;
 border-radius:10px;
 border:1px solid #333;
 }
 
-button,input{
+button{
 background:#222;
 color:#fff;
 border:1px solid #444;
 padding:8px 12px;
 border-radius:8px;
+cursor:pointer;
 }
-
-button{cursor:pointer;}
-button:hover{background:#333;}
 
 #coords{
 position:fixed;
-right:10px;
 top:10px;
-background:#1b1b1b;
-border:1px solid #333;
-padding:10px;
+right:10px;
+background:#111;
 color:#fff;
-border-radius:8px;
-font-size:13px;
-min-width:120px;
-}
-
-#manualPanel{
-position:fixed;
-left:50%;
-top:50%;
-transform:translate(-50%,-50%);
-background:#1b1b1b;
-border:1px solid #333;
-padding:20px;
-border-radius:10px;
-display:none;
-flex-direction:column;
-gap:10px;
-z-index:99999;
+padding:8px;
+font-size:12px;
+border-radius:6px;
 }
 
 canvas{
 display:block;
-image-rendering:pixelated;
 touch-action:none;
-cursor:grab;
+image-rendering:pixelated;
 }
-canvas:active{cursor:grabbing;}
 </style>
 </head>
 
@@ -84,23 +62,11 @@ canvas:active{cursor:grabbing;}
 <button id="adminBtn">Admin</button>
 <button id="removeBtn" style="display:none;">Rimuovi</button>
 <button id="resetBtn">Reset</button>
-<button id="manualBtn" style="display:none;">Manuale</button>
-<div id="info"></div>
 </div>
 
-<div id="coords">X:0<br>Y:0</div>
+<div id="coords">X:0 Y:0</div>
 
-<div id="manualPanel">
-<input id="mx" placeholder="X">
-<input id="my" placeholder="Y">
-<input id="mw" placeholder="W">
-<input id="mh" placeholder="H">
-<input type="file" id="file">
-<button id="add">Inserisci</button>
-<button id="close">Chiudi</button>
-</div>
-
-<canvas id="canvas"></canvas>
+<canvas id="c"></canvas>
 
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
@@ -116,88 +82,82 @@ projectId:"pixel-wall-ff621"
 
 const db=firebase.firestore();
 
-/* ================= CLOUDINARY ================= */
-const CLOUD_NAME="dkwijnvsl";
-const UPLOAD_PRESET="pixelwall";
+/* ================= CANVAS ================= */
+const c=document.getElementById("c");
+const ctx=c.getContext("2d");
+ctx.imageSmoothingEnabled=false;
+
+function resize(){
+c.width=innerWidth;
+c.height=innerHeight;
+}
+resize();
 
 /* ================= WORLD ================= */
 const W=1280,H=720;
 
-/* ================= CANVAS ================= */
-const canvas=document.getElementById("canvas");
-const ctx=canvas.getContext("2d");
-ctx.imageSmoothingEnabled=false;
-
-canvas.width=innerWidth;
-canvas.height=innerHeight;
-
 /* ================= STATE ================= */
 let scale=1;
-let offsetX=0;
-let offsetY=0;
-
+let ox=0,oy=0;
 let blocks=[];
+let selected=null;
 let admin=false;
-let selectedId=null;
+
+/* ================= CACHE IMMAGINI ================= */
+const cache={};
+
+/* ================= FIREBASE LOAD ================= */
+db.collection("pixelwall").doc("main").onSnapshot(d=>{
+blocks=d.data()?.blocks||[];
+});
 
 /* ================= CENTER ================= */
 function center(){
-offsetX=(canvas.width-W*scale)/2;
-offsetY=(canvas.height-H*scale)/2;
+ox=(c.width-W*scale)/2;
+oy=(c.height-H*scale)/2;
 }
 
-/* ================= LOAD ================= */
-db.collection("pixelwall").doc("main").onSnapshot(d=>{
-blocks=d.data()?.blocks||[];
-draw();
-});
-
-/* ================= SAVE ================= */
-function save(){
-db.collection("pixelwall").doc("main").set({blocks},{merge:true});
+/* ================= POINTER ================= */
+function pos(e){
+const r=c.getBoundingClientRect();
+return{
+x:(e.clientX-r.left-ox)/scale,
+y:(e.clientY-r.top-oy)/scale
+};
 }
 
-/* ================= DRAW ================= */
+/* ================= RENDER LOOP (FIX VERO) ================= */
 function draw(){
 
-ctx.clearRect(0,0,canvas.width,canvas.height);
+ctx.clearRect(0,0,c.width,c.height);
 
 ctx.save();
-ctx.translate(offsetX,offsetY);
+ctx.translate(ox,oy);
 ctx.scale(scale,scale);
 
-/* world */
+/* background */
 ctx.fillStyle="#151515";
 ctx.fillRect(0,0,W,H);
-
-/* grid */
-ctx.strokeStyle="#1f1f1f";
-ctx.lineWidth=1/scale;
-
-for(let x=0;x<=W;x++){
-ctx.beginPath();
-ctx.moveTo(x,0);
-ctx.lineTo(x,H);
-ctx.stroke();
-}
-for(let y=0;y<=H;y++){
-ctx.beginPath();
-ctx.moveTo(0,y);
-ctx.lineTo(W,y);
-ctx.stroke();
-}
 
 /* blocks */
 for(let b of blocks){
 
-if(!b._img){
-b._img=new Image();
-b._img.src=b.img;
+if(!cache[b.img]){
+const img=new Image();
+img.src=b.img;
+
+/* 🔥 FORZA REDRAW QUANDO CARICA */
+img.onload=()=>{};
+cache[b.img]=img;
 }
 
-ctx.drawImage(b._img,b.x,b.y,b.w,b.h);
+const img=cache[b.img];
 
-if(b.id===selectedId){
+if(img && img.complete && img.naturalWidth>0){
+ctx.drawImage(img,b.x,b.y,b.w,b.h);
+}
+
+if(b.id===selected){
 ctx.strokeStyle="red";
 ctx.lineWidth=2/scale;
 ctx.strokeRect(b.x,b.y,b.w,b.h);
@@ -206,64 +166,77 @@ ctx.strokeRect(b.x,b.y,b.w,b.h);
 }
 
 ctx.restore();
+
 }
 
-/* ================= COORDS ================= */
-function worldPos(e){
-const r=canvas.getBoundingClientRect();
-return {
-x:(e.clientX-r.left-offsetX)/scale,
-y:(e.clientY-r.top-offsetY)/scale
-};
+/* ================= CONTINUOUS LOOP ================= */
+function loop(){
+draw();
+requestAnimationFrame(loop);
 }
+loop();
 
-canvas.addEventListener("mousemove",(e)=>{
-const p=worldPos(e);
-document.getElementById("coords").innerHTML=
-`X:${Math.floor(p.x)}<br>Y:${Math.floor(p.y)}`;
+/* ================= PAN ================= */
+let dragging=false;
+let lx=0,ly=0;
+
+c.addEventListener("mousedown",e=>{
+dragging=true;
+lx=e.clientX;
+ly=e.clientY;
+});
+
+c.addEventListener("mousemove",e=>{
+
+document.getElementById("coords").innerText=
+`X:${Math.floor(pos(e).x)} Y:${Math.floor(pos(e).y)}`;
+
+if(dragging){
+ox+=e.clientX-lx;
+oy+=e.clientY-ly;
+lx=e.clientX;
+ly=e.clientY;
+}
+});
+
+c.addEventListener("mouseup",()=>dragging=false);
+
+/* ================= ZOOM ================= */
+c.addEventListener("wheel",e=>{
+e.preventDefault();
+scale*=e.deltaY<0?1.1:0.9;
+scale=Math.max(0.2,Math.min(50,scale));
 });
 
 /* ================= SELECT ================= */
-canvas.addEventListener("click",(e)=>{
-
-const p=worldPos(e);
-
-selectedId=null;
+c.addEventListener("click",e=>{
+let p=pos(e);
+selected=null;
 
 for(let i=blocks.length-1;i>=0;i--){
 let b=blocks[i];
-if(
-p.x>=b.x&&p.x<=b.x+b.w&&
-p.y>=b.y&&p.y<=b.y+b.h
-){
-selectedId=b.id;
+if(p.x>=b.x&&p.x<=b.x+b.w&&p.y>=b.y&&p.y<=b.y+b.h){
+selected=b.id;
 break;
 }
 }
-
-draw();
-
 });
-
-/* ================= REMOVE ================= */
-document.getElementById("removeBtn").onclick=()=>{
-
-blocks=blocks.filter(b=>b.id!==selectedId);
-selectedId=null;
-save();
-draw();
-
-};
 
 /* ================= ADMIN ================= */
 document.getElementById("adminBtn").onclick=()=>{
-
-const p=prompt("admin");
-if(p==="admin123"){
+if(prompt("admin")==="admin123"){
 admin=!admin;
 document.getElementById("removeBtn").style.display=admin?"block":"none";
-document.getElementById("manualBtn").style.display=admin?"block":"none";
 }
+};
+
+/* ================= REMOVE FIX ================= */
+document.getElementById("removeBtn").onclick=()=>{
+
+blocks=blocks.filter(b=>b.id!==selected);
+selected=null;
+
+db.collection("pixelwall").doc("main").set({blocks});
 
 };
 
@@ -271,127 +244,14 @@ document.getElementById("manualBtn").style.display=admin?"block":"none";
 document.getElementById("resetBtn").onclick=()=>{
 scale=1;
 center();
-draw();
 };
-
-/* ================= ZOOM + PAN ================= */
-let dragging=false;
-let dragX=0;
-let dragY=0;
-
-canvas.addEventListener("mousedown",(e)=>{
-dragging=true;
-dragX=e.clientX;
-dragY=e.clientY;
-});
-
-canvas.addEventListener("mousemove",(e)=>{
-if(!dragging)return;
-offsetX+=e.clientX-dragX;
-offsetY+=e.clientY-dragY;
-dragX=e.clientX;
-dragY=e.clientY;
-draw();
-});
-
-canvas.addEventListener("mouseup",()=>dragging=false);
-
-/* zoom */
-canvas.addEventListener("wheel",(e)=>{
-e.preventDefault();
-scale*=e.deltaY<0?1.1:0.9;
-scale=Math.max(0.2,Math.min(50,scale));
-draw();
-},{passive:false});
-
-/* ================= TOUCH ================= */
-let pinchDist=0;
-let pinchScale=1;
-
-function dist(t1,t2){
-return Math.hypot(t1.clientX-t2.clientX,t1.clientY-t2.clientY);
-}
-
-canvas.addEventListener("touchstart",(e)=>{
-if(e.touches.length===1){
-dragging=true;
-dragX=e.touches[0].clientX;
-dragY=e.touches[0].clientY;
-}
-if(e.touches.length===2){
-pinchDist=dist(e.touches[0],e.touches[1]);
-pinchScale=scale;
-}
-},{passive:true});
-
-canvas.addEventListener("touchmove",(e)=>{
-if(e.touches.length===1&&dragging){
-offsetX+=e.touches[0].clientX-dragX;
-offsetY+=e.touches[0].clientY-dragY;
-dragX=e.touches[0].clientX;
-dragY=e.touches[0].clientY;
-draw();
-}
-
-if(e.touches.length===2){
-const d=dist(e.touches[0],e.touches[1]);
-scale=pinchScale*(d/pinchDist);
-scale=Math.max(0.2,Math.min(50,scale));
-draw();
-}
-},{passive:false});
-
-canvas.addEventListener("touchend",()=>dragging=false);
-
-/* ================= MANUAL ================= */
-const panel=document.getElementById("manualPanel");
-
-document.getElementById("manualBtn").onclick=()=>panel.style.display="flex";
-document.getElementById("close").onclick=()=>panel.style.display="none";
-
-document.getElementById("add").onclick=async()=>{
-
-const file=document.getElementById("file").files[0];
-if(!file)return;
-
-const x=parseInt(mx.value)||0;
-const y=parseInt(my.value)||0;
-const w=parseInt(mw.value)||1;
-const h=parseInt(mh.value)||1;
-
-const form=new FormData();
-form.append("file",file);
-form.append("upload_preset",UPLOAD_PRESET);
-
-const res=await fetch(
-`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,
-{method:"POST",body:form}
-);
-
-const data=await res.json();
-
-blocks.push({
-id:Date.now(),
-img:data.secure_url,
-x,y,w,h
-});
-
-save();
-panel.style.display="none";
-draw();
-
-};
-
-/* ================= INIT ================= */
-center();
-draw();
 
 window.addEventListener("resize",()=>{
-canvas.width=innerWidth;
-canvas.height=innerHeight;
+resize();
 center();
-draw();
 });
+
+center();
 
 </script>
 
