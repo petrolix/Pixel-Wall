@@ -3,45 +3,36 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Pixel Wall - Mobile Optimized</title>
+    <title>Pixel Wall - Touch Fixed</title>
     <style>
-        *{margin:0;padding:0;box-sizing:border-box; touch-action: none; } /* Blocca gesti browser di default */
-        
+        *{margin:0;padding:0;box-sizing:border-box; touch-action: none; }
         body { 
             overflow:hidden; background:#0a0a0a; 
             font-family: 'Segoe UI', system-ui, sans-serif; 
             display: flex; flex-direction: column; height: 100vh;
-            position: fixed; width: 100%; /* Evita rimbalzi su iOS */
+            position: fixed; width: 100%; 
         }
-
         header {
             background: #1a1a1a; color: white; padding: 10px 15px;
             display: flex; align-items: center; justify-content: space-between;
             border-bottom: 1px solid #333; z-index: 10000;
         }
-
         .controls-group { display: flex; align-items: center; gap: 10px; }
-
         .mode-toggle { display: flex; background: #000; padding: 2px; border-radius: 8px; border: 1px solid #444; }
         .mode-btn {
             background: transparent; color: #666; border: none; padding: 6px 10px;
             border-radius: 6px; cursor: pointer; font-size: 10px; font-weight: bold;
         }
         .mode-btn.active { background: #333; color: lime; }
-
         .zoom-group { display: flex; align-items: center; gap: 5px; background: #252525; padding: 3px 8px; border-radius: 8px; border: 1px solid #444; }
         #zoom-level { font-family: monospace; font-size: 11px; color: lime; min-width: 40px; text-align: center; }
-
         #selectionUI {
             display: flex; align-items: center; gap: 8px;
-            background: #252525; padding: 5px 10px; border-radius: 8px;
-            border: 1px solid #444; visibility: hidden;
+            background: #252525; padding: 5px 10px; border-radius: 8px; border: 1px solid #444; visibility: hidden;
         }
         #selectionUI.active { visibility: visible; border-color: lime; }
-
         input { width: 45px; background: #000; border: 1px solid #555; color: lime; padding: 3px; border-radius: 4px; text-align: center; font-size: 12px; }
         button { background: #333; color: #eee; border: 1px solid #555; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 11px; }
-        
         #canvas-container { flex-grow: 1; position: relative; overflow: hidden; background: #000; }
         canvas { display: block; image-rendering: pixelated; }
     </style>
@@ -55,18 +46,15 @@
             <button id="modeSelect" class="mode-btn">SELEZIONA</button>
         </div>
         <div class="zoom-group">
-            <button id="zoomOut" style="padding:2px 8px;">-</button>
+            <button id="zoomOut">-</button>
             <span id="zoom-level">100%</span>
-            <button id="zoomIn" style="padding:2px 8px;">+</button>
+            <button id="zoomIn">+</button>
         </div>
         <button id="resetBtn">Centra</button>
     </div>
-
     <div id="selectionUI">
-        <input type="number" id="ux">
-        <input type="number" id="uy">
-        <input type="number" id="uw">
-        <input type="number" id="uh">
+        <input type="number" id="ux"> <input type="number" id="uy">
+        <input type="number" id="uw"> <input type="number" id="uh">
         <button id="clearSelBtn" style="color:#f88;">X</button>
     </div>
 </header>
@@ -123,37 +111,40 @@ function draw() {
 function loop() { draw(); requestAnimationFrame(loop); }
 loop();
 
-/* ================= LOGICA TOUCH AVANZATA ================= */
+/* ================= FIX DRAG & ZOOM ================= */
 let evCache = [];
 let prevDiff = -1;
-let isAction = false, startPos = {x:0, y:0}, lastM = {x:0, y:0};
+let isMouseDown = false;
+let startPos = {x:0, y:0}, lastM = {x:0, y:0};
 
 c.onpointerdown = e => {
     evCache.push(e);
+    isMouseDown = true;
+    lastM = { x: e.clientX, y: e.clientY };
+
     const r = c.getBoundingClientRect();
     const wp = {
         x: Math.floor((e.clientX - r.left - ox) / scale),
         y: Math.floor((e.clientY - r.top - oy) / scale)
     };
 
-    if (evCache.length === 1) {
+    if (evCache.length === 1 && currentMode === 'select') {
         const hit = blocks.some(b => wp.x >= b.x && wp.x < b.x + b.w && wp.y >= b.y && wp.y < b.y + b.h);
-        if (currentMode === 'select' && !hit && wp.x >= 0 && wp.x < W && wp.y >= 0 && wp.y < H) {
-            isAction = true; startPos = wp;
+        if (!hit && wp.x >= 0 && wp.x < W && wp.y >= 0 && wp.y < H) {
+            startPos = wp;
             updatePreview(wp.x, wp.y, 1, 1);
         } else {
-            isAction = true; lastM = { x: e.clientX, y: e.clientY };
+            startPos = null; // Forza il pan se clicco su un blocco
         }
     }
 };
 
 c.onpointermove = e => {
-    // Gestione Zoom (Pinch)
     const index = evCache.findIndex(ev => ev.pointerId === e.pointerId);
-    evCache[index] = e;
+    if (index !== -1) evCache[index] = e;
 
+    // 1. GESTIONE ZOOM (2 dita)
     if (evCache.length === 2) {
-        isAction = false; // Ferma selezione se stiamo zoomando
         const curDiff = Math.hypot(evCache[0].clientX - evCache[1].clientX, evCache[0].clientY - evCache[1].clientY);
         if (prevDiff > 0) {
             const ratio = curDiff / prevDiff;
@@ -164,50 +155,54 @@ c.onpointermove = e => {
         return;
     }
 
-    // Coordinate nel banner
+    // 2. GESTIONE DRAG / SELEZIONE (1 dito)
+    if (isMouseDown && evCache.length === 1) {
+        const r = c.getBoundingClientRect();
+        const cw = {
+            x: Math.floor((e.clientX - r.left - ox) / scale),
+            y: Math.floor((e.clientY - r.top - oy) / scale)
+        };
+
+        if (currentMode === 'select' && startPos) {
+            // SELEZIONE
+            let x1 = Math.max(0, Math.min(startPos.x, cw.x));
+            let y1 = Math.max(0, Math.min(startPos.y, cw.y));
+            let x2 = Math.min(W, Math.max(startPos.x, cw.x) + 1);
+            let y2 = Math.min(H, Math.max(startPos.y, cw.y) + 1);
+            if (!checkCollision(x1, y1, x2-x1, y2-y1)) updatePreview(x1, y1, x2 - x1, y2 - y1);
+        } else {
+            // PAN (Spostamento)
+            ox += e.clientX - lastM.x;
+            oy += e.clientY - lastM.y;
+            lastM = { x: e.clientX, y: e.clientY };
+        }
+    }
+    
+    // Mostra sempre coordinate nel banner
     const r = c.getBoundingClientRect();
-    const cw = {
+    const coordW = {
         x: Math.floor((e.clientX - r.left - ox) / scale),
         y: Math.floor((e.clientY - r.top - oy) / scale)
     };
-    document.getElementById("coords-label").innerText = `X:${cw.x} Y:${cw.y}`;
-
-    if (!isAction) return;
-
-    if (currentMode === 'select' && startPos.x !== undefined && !lastM.x) {
-        let x1 = Math.max(0, Math.min(startPos.x, cw.x));
-        let y1 = Math.max(0, Math.min(startPos.y, cw.y));
-        let x2 = Math.min(W, Math.max(startPos.x, cw.x) + 1);
-        let y2 = Math.min(H, Math.max(startPos.y, cw.y) + 1);
-        if (!checkCollision(x1, y1, x2-x1, y2-y1)) updatePreview(x1, y1, x2 - x1, y2 - y1);
-    } else {
-        ox += e.clientX - lastM.x;
-        oy += e.clientY - lastM.y;
-        lastM = { x: e.clientX, y: e.clientY };
-    }
+    document.getElementById("coords-label").innerText = `X:${coordW.x} Y:${coordW.y}`;
 };
 
 c.onpointerup = c.onpointercancel = c.onpointerout = e => {
     evCache = evCache.filter(ev => ev.pointerId !== e.pointerId);
     if (evCache.length < 2) prevDiff = -1;
-    isAction = false; lastM = {x:0, y:0};
+    isMouseDown = false;
 };
 
-/* ================= UTILS & UI ================= */
+/* ================= LOGICA UI ================= */
 function setMode(m) {
     currentMode = m;
     document.getElementById("modePan").classList.toggle("active", m === 'pan');
     document.getElementById("modeSelect").classList.toggle("active", m === 'select');
-    if (m === 'pan') resetSelection();
+    if (m === 'pan') { preview.active = false; selUI.style.visibility = "hidden"; }
 }
-
 document.getElementById("modePan").onclick = () => setMode('pan');
 document.getElementById("modeSelect").onclick = () => setMode('select');
-
-function resetSelection() {
-    preview.active = false; selUI.style.visibility = "hidden";
-}
-document.getElementById("clearSelBtn").onclick = resetSelection;
+document.getElementById("clearSelBtn").onclick = () => { preview.active = false; selUI.style.visibility = "hidden"; };
 
 function checkCollision(x, y, w, h) {
     return blocks.some(b => x < b.x + b.w && x + w > b.x && y < b.y + b.h && y + h > b.y);
@@ -233,10 +228,10 @@ c.addEventListener("wheel", e => {
     updateZoomUI();
 }, {passive: false});
 
-document.getElementById("zoomIn").onclick = () => { scale = Math.min(60, scale * 1.25); updateZoomUI(); };
+document.getElementById("zoomIn").onclick = () => { scale = Math.min(60, scale * 1.2); updateZoomUI(); };
 document.getElementById("zoomOut").onclick = () => { scale = Math.max(0.1, scale * 0.8); updateZoomUI(); };
-document.getElementById("resetBtn").onclick = () => { scale = 1; ox = (c.width - W)/2; oy = (c.height - H)/2; updateZoomUI(); };
-window.onload = () => { ox = (c.width - W)/2; oy = (c.height - H)/2; updateZoomUI(); };
+document.getElementById("resetBtn").onclick = () => { scale = 1; ox = (c.width-W)/2; oy = (c.height-H)/2; updateZoomUI(); };
+window.onload = () => { ox = (c.width-W)/2; oy = (c.height-H)/2; updateZoomUI(); };
 </script>
 </body>
 </html>
