@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Pixel Wall - Admin Suite</title>
+    <title>Pixel Wall - Admin Suite Mobile</title>
     <style>
         *{margin:0;padding:0;box-sizing:border-box; touch-action: none; }
         body { 
@@ -14,47 +14,50 @@
         }
 
         header {
-            background: #1a1a1a; color: white; padding: 8px 15px;
+            background: #1a1a1a; color: white; padding: 8px 12px;
             display: flex; flex-direction: column; gap: 8px;
             border-bottom: 2px solid #d4a017; z-index: 10000;
         }
 
-        .top-row { display: flex; align-items: center; justify-content: space-between; width: 100%; flex-wrap: wrap; gap: 10px; }
+        .top-row { display: flex; align-items: center; justify-content: space-between; width: 100%; }
         .stats-row { 
             display: flex; align-items: center; justify-content: space-between; width: 100%;
             font-family: monospace; font-size: 11px; color: #888; 
-            background: #000; padding: 5px 12px; border-radius: 6px; border: 1px solid #222;
+            background: #000; padding: 6px 10px; border-radius: 6px; border: 1px solid #222;
         }
         
-        .controls-group { display: flex; align-items: center; gap: 10px; }
-        .mode-toggle { display: flex; background: #000; padding: 2px; border-radius: 8px; border: 1px solid #444; }
-        .mode-btn {
-            background: transparent; color: #666; border: none; padding: 6px 10px;
-            border-radius: 6px; cursor: pointer; font-size: 10px; font-weight: bold;
+        .controls-group { display: flex; align-items: center; gap: 8px; }
+        #adminArea { display: none; align-items: center; gap: 8px; }
+
+        /* NUOVO PANNELLO SELEZIONE (Sotto le statistiche) */
+        #selectionUI { 
+            display: none; 
+            flex-wrap: wrap;
+            align-items: center; 
+            justify-content: center;
+            gap: 8px; 
+            background: #252525; 
+            padding: 10px; 
+            border-radius: 8px; 
+            border: 1px solid #d4a017;
+            margin-top: 5px;
         }
+        
+        .sel-field { display: flex; align-items: center; gap: 3px; font-size: 11px; color: #aaa; }
+        input[type="number"] { width: 45px; background: #000; border: 1px solid #555; color: #d4a017; padding: 4px; border-radius: 4px; text-align: center; }
+        #fileInput { font-size: 11px; color: #aaa; flex-grow: 1; min-width: 150px; }
+
+        .mode-toggle { display: flex; background: #000; padding: 2px; border-radius: 8px; border: 1px solid #444; }
+        .mode-btn { background: transparent; color: #666; border: none; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 10px; font-weight: bold; }
         .mode-btn.active { background: #333; color: #d4a017; }
 
-        /* UI SELEZIONE & ADMIN */
-        #adminArea { display: none; align-items: center; gap: 10px; }
-        #selectionUI { 
-            display: none; align-items: center; gap: 6px; 
-            background: #252525; padding: 4px 10px; border-radius: 8px; border: 1px solid #d4a017;
-        }
-        .sel-field { display: flex; align-items: center; gap: 3px; font-size: 10px; color: #aaa; }
-        input { width: 42px; background: #000; border: 1px solid #555; color: #d4a017; padding: 2px; border-radius: 4px; text-align: center; font-size: 11px; }
-        #fileInput { font-size: 10px; color: #aaa; width: 130px; }
-
-        #saveBtn { background: #d4a017; color: #000; font-weight: bold; border: none; }
-        #removeBtn { background: #600; color: white; border: 1px solid red; display: none; }
+        button { background:#333; color:white; border:1px solid #444; border-radius:4px; cursor:pointer; padding: 6px 10px; font-size: 11px; }
         #loginBtn { background: #d4a017; color: black; font-weight: bold; border: none; }
-        
-        /* Statistiche */
-        .stat-item b { color: #d4a017; }
-        #sel-count-box { color: #00ffcc; font-weight: bold; margin-left: 10px; display: none; }
+        #saveBtn { background: #d4a017; color: black; font-weight: bold; border: none; padding: 8px 15px; }
+        #removeBtn { background: #600; color: white; border: 1px solid red; display: none; }
 
         #canvas-container { flex-grow: 1; position: relative; overflow: hidden; background: #000; }
         canvas { display: block; image-rendering: pixelated; }
-        button { background:#333; color:white; border:1px solid #444; border-radius:4px; cursor:pointer; padding: 4px 8px; font-size: 11px; }
     </style>
 </head>
 <body>
@@ -71,32 +74,36 @@
                 <button id="removeBtn">ELIMINA</button>
                 <button id="resetBtn">RESET</button>
             </div>
-            <div style="display:flex; align-items:center; gap:5px;">
-                <button id="zoomOut">-</button>
-                <span id="zoom-level" style="color:#d4a017; font-family:monospace; min-width:35px;">100%</span>
-                <button id="zoomIn">+</button>
+            <div style="display:flex; align-items:center; gap:5px; background:#222; padding:2px 6px; border-radius:6px;">
+                <button id="zoomOut" style="border:none; background:none;">-</button>
+                <span id="zoom-level" style="color:#d4a017; font-family:monospace; font-size:11px; min-width:35px; text-align:center;">100%</span>
+                <button id="zoomIn" style="border:none; background:none;">+</button>
             </div>
-        </div>
-
-        <div id="selectionUI">
-            <div class="sel-field">X <input type="number" id="ux"></div>
-            <div class="sel-field">Y <input type="number" id="uy"></div>
-            <div class="sel-field">W <input type="number" id="uw"></div>
-            <div class="sel-field">H <input type="number" id="uh"></div>
-            <input type="file" id="fileInput" accept="image/*">
-            <button id="saveBtn">PUBBLICA</button>
-            <button id="clearSelBtn" style="color:#f88; border:none; background:none; font-size:16px;">✕</button>
         </div>
     </div>
 
     <div class="stats-row">
-        <div style="display:flex; align-items:center;">
-            <span style="color:#555; font-weight:bold; margin-right:10px;">ADMIN PIXEL:</span>
-            <div class="stat-item" style="margin-right:10px;">Disp: <b id="statFree">0</b></div>
-            <div class="stat-item" style="margin-right:10px;">Occ: <b id="statUsed">0</b></div>
-            <div id="sel-count-box">Area: <span id="statSel">0</span> px</div>
+        <div style="display:flex; align-items:center; gap:10px;">
+            <span style="color:#d4a017; font-weight:bold;">PIXEL:</span>
+            <div class="stat-item">Disp: <b id="statFree">0</b></div>
+            <div class="stat-item">Occ: <b id="statUsed">0</b></div>
+            <div id="sel-count-box" style="color:#00ffcc; font-weight:bold; display:none;">Area: <span id="statSel">0</span> px</div>
         </div>
         <div id="coords-label" style="color:#555;">X:0 Y:0</div>
+    </div>
+
+    <div id="selectionUI">
+        <div style="display:flex; gap:8px; width:100%; justify-content:center;">
+            <div class="sel-field">X <input type="number" id="ux"></div>
+            <div class="sel-field">Y <input type="number" id="uy"></div>
+            <div class="sel-field">W <input type="number" id="uw"></div>
+            <div class="sel-field">H <input type="number" id="uh"></div>
+            <button id="clearSelBtn" style="background:none; border:none; color:#f88; font-size:18px; padding:0 5px;">✕</button>
+        </div>
+        <div style="display:flex; gap:8px; width:100%; align-items:center; border-top:1px solid #444; padding-top:8px;">
+            <input type="file" id="fileInput" accept="image/*">
+            <button id="saveBtn">PUBBLICA BLOCCO</button>
+        </div>
     </div>
 </header>
 
@@ -106,7 +113,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 
 <script>
-// CONFIG
+// CONFIGURAZIONE (Usa i tuoi dati originali)
 firebase.initializeApp({ apiKey:"AIzaSyDFPiQn3Uq7_OA0e7UxNoeze8z_EfndwsU", authDomain:"pixel-wall-ff621.firebaseapp.com", projectId:"pixel-wall-ff621" });
 const db = firebase.firestore();
 const CLOUD = "dkwijnvsl", PRESET = "pixelwall", W=1280, H=720;
@@ -124,7 +131,6 @@ function resize() {
 window.addEventListener("resize", resize);
 resize();
 
-// Snapshot real-time su collezione 'blocks'
 db.collection("blocks").onSnapshot(s => { 
     blocks = s.docs.map(d => ({ id: d.id, ...d.data() })); 
     updateStats();
@@ -143,9 +149,8 @@ function draw() {
     ctx.translate(Math.round(ox), Math.round(oy));
     ctx.scale(scale, scale);
     ctx.fillStyle = "#111"; ctx.fillRect(0, 0, W, H);
-    
     if (scale > 5) {
-        ctx.beginPath(); ctx.strokeStyle = "rgba(212,160,23,0.15)"; ctx.lineWidth = 1/scale;
+        ctx.beginPath(); ctx.strokeStyle = "rgba(212,160,23,0.1)"; ctx.lineWidth = 1/scale;
         for(let x=0; x<=W; x+=10) { ctx.moveTo(x,0); ctx.lineTo(x,H); }
         for(let y=0; y<=H; y+=10) { ctx.moveTo(0,y); ctx.lineTo(W,y); }
         ctx.stroke();
@@ -168,7 +173,7 @@ function draw() {
 function loop() { draw(); requestAnimationFrame(loop); }
 loop();
 
-// --- ADMIN LOGIN ---
+// LOGIN
 document.getElementById("loginBtn").onclick = () => {
     if(prompt("Password:") === "admin123") {
         isAdmin = true;
@@ -177,32 +182,26 @@ document.getElementById("loginBtn").onclick = () => {
     }
 };
 
-// --- AZIONI DATABASE (Cloudinary + Firestore) ---
+// PUBBLICAZIONE
 document.getElementById("saveBtn").onclick = async () => {
     const file = document.getElementById("fileInput").files[0];
-    if(!file || !preview.active) return alert("Seleziona area e file");
-    
+    if(!file || !preview.active) return alert("Scegli area e file");
     const btn = document.getElementById("saveBtn");
-    btn.disabled = true; btn.innerText = "...";
-
+    btn.disabled = true; btn.innerText = "CARICO...";
     const form = new FormData(); form.append("file", file); form.append("upload_preset", PRESET);
     try {
         const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD}/image/upload`, { method: "POST", body: form });
         const data = await res.json();
-
-        await db.collection("blocks").add({
-            img: data.secure_url, delete_token: data.delete_token,
-            x: preview.x, y: preview.y, w: preview.w, h: preview.h
-        });
+        await db.collection("blocks").add({ img: data.secure_url, delete_token: data.delete_token, x: preview.x, y: preview.y, w: preview.w, h: preview.h });
         resetSelection();
-    } catch(e) { alert("Errore caricamento"); }
-    btn.disabled = false; btn.innerText = "PUBBLICA";
+    } catch(e) { alert("Errore"); }
+    btn.disabled = false; btn.innerText = "PUBBLICA BLOCCO";
 };
 
 document.getElementById("removeBtn").onclick = async () => {
-    if(!selectedId || !confirm("Eliminare definitivamente?")) return;
+    if(!selectedId || !confirm("Eliminare?")) return;
     const bRem = blocks.find(b => b.id === selectedId);
-    if(bRem && bRem.delete_token) {
+    if(bRem?.delete_token) {
         const f = new FormData(); f.append("token", bRem.delete_token);
         fetch(`https://api.cloudinary.com/v1_1/${CLOUD}/delete_by_token`, { method: "POST", body: f });
     }
@@ -211,26 +210,21 @@ document.getElementById("removeBtn").onclick = async () => {
     document.getElementById("removeBtn").style.display = "none";
 };
 
-// --- LOGICA ZOOM E PAN (CENTRATURA) ---
-function applyZoom(s, centerX, centerY) {
-    const newScale = Math.max(0.1, Math.min(60, scale * s));
-    const worldX = (centerX - ox) / scale, worldY = (centerY - oy) / scale;
-    scale = newScale;
-    ox = centerX - worldX * scale; oy = centerY - worldY * scale;
+// ZOOM E PAN
+function applyZoom(s, cx, cy) {
+    const ns = Math.max(0.1, Math.min(60, scale * s));
+    const wx = (cx - ox) / scale, wy = (cy - oy) / scale;
+    scale = ns; ox = cx - wx * scale; oy = cy - wy * scale;
     document.getElementById("zoom-level").innerText = Math.round(scale * 100) + "%";
 }
-
-c.addEventListener("wheel", e => { e.preventDefault(); applyZoom(e.deltaY < 0 ? 1.1 : 0.9, e.clientX, e.clientY); }, {passive: false});
 
 let evCache = [], prevDiff = -1, isMouseDown = false, startPos = null, lastM = {x:0, y:0};
 
 c.onpointerdown = e => {
-    evCache.push(e); isMouseDown = true; lastM = { x: e.clientX, y: e.clientY };
+    evCache.push(e); isMouseDown = true; lastM = {x:e.clientX, y:e.clientY};
     const r = c.getBoundingClientRect();
     const wp = { x: Math.floor((e.clientX-r.left-ox)/scale), y: Math.floor((e.clientY-r.top-oy)/scale) };
-
-    if (evCache.length === 1) {
-        // Selezione blocchi esistenti per eliminazione
+    if(evCache.length === 1) {
         selectedId = null;
         document.getElementById("removeBtn").style.display = "none";
         for(let i=blocks.length-1; i>=0; i--) {
@@ -241,8 +235,7 @@ c.onpointerdown = e => {
                 break;
             }
         }
-        // Inizio disegno nuova selezione
-        if (!selectedId && isAdmin && currentMode === 'select' && wp.x >= 0 && wp.x < W && wp.y >= 0 && wp.y < H) {
+        if(!selectedId && isAdmin && currentMode === 'select' && wp.x>=0 && wp.x<W && wp.y>=0 && wp.y<H) {
             startPos = wp; updatePreview(wp.x, wp.y, 1, 1);
         } else startPos = null;
     }
@@ -251,38 +244,32 @@ c.onpointerdown = e => {
 c.onpointermove = e => {
     const index = evCache.findIndex(ev => ev.pointerId === e.pointerId);
     if (index !== -1) evCache[index] = e;
-    
-    // Zoom Multi-touch
     if (evCache.length === 2) {
-        const curDiff = Math.hypot(evCache[0].clientX-evCache[1].clientX, evCache[0].clientY-evCache[1].clientY);
-        const midX = (evCache[0].clientX+evCache[1].clientX)/2, midY = (evCache[0].clientY+evCache[1].clientY)/2;
-        if (prevDiff > 0) applyZoom(curDiff/prevDiff, midX, midY);
-        prevDiff = curDiff; return;
+        const d = Math.hypot(evCache[0].clientX-evCache[1].clientX, evCache[0].clientY-evCache[1].clientY);
+        if (prevDiff > 0) applyZoom(d/prevDiff, (evCache[0].clientX+evCache[1].clientX)/2, (evCache[0].clientY+evCache[1].clientY)/2);
+        prevDiff = d; return;
     }
-
+    const r = c.getBoundingClientRect();
+    const cw = { x: Math.floor((e.clientX-r.left-ox)/scale), y: Math.floor((e.clientY-r.top-oy)/scale) };
+    document.getElementById("coords-label").innerText = `X:${cw.x} Y:${cw.y}`;
     if (isMouseDown && evCache.length === 1) {
-        const r = c.getBoundingClientRect();
-        const cw = { x: Math.floor((e.clientX-r.left-ox)/scale), y: Math.floor((e.clientY-r.top-oy)/scale) };
-        
         if (isAdmin && currentMode === 'select' && startPos) {
             let x1 = Math.max(0, Math.min(startPos.x, cw.x)), y1 = Math.max(0, Math.min(startPos.y, cw.y));
             let x2 = Math.min(W, Math.max(startPos.x, cw.x)+1), y2 = Math.min(H, Math.max(startPos.y, cw.y)+1);
-            if (!checkCollision(x1, y1, x2-x1, y2-y1)) updatePreview(x1, y1, x2-x1, y2-y1);
+            if (!blocks.some(b => x1 < b.x+b.w && x2 > b.x && y1 < b.y+b.h && y2 > b.y)) updatePreview(x1, y1, x2-x1, y2-y1);
         } else {
             ox += e.clientX - lastM.x; oy += e.clientY - lastM.y;
-            lastM = { x: e.clientX, y: e.clientY };
+            lastM = {x:e.clientX, y:e.clientY};
         }
-        document.getElementById("coords-label").innerText = `X:${cw.x} Y:${cw.y}`;
     }
 };
 
 c.onpointerup = c.onpointercancel = e => {
     evCache = evCache.filter(ev => ev.pointerId !== e.pointerId);
-    if (evCache.length < 2) prevDiff = -1;
+    if(evCache.length < 2) prevDiff = -1;
     isMouseDown = false;
 };
 
-// --- UI HELPERS ---
 function updatePreview(x, y, w, h) {
     preview = { x, y, w, h, active: true };
     selUI.style.display = "flex";
@@ -291,26 +278,9 @@ function updatePreview(x, y, w, h) {
     document.getElementById("statSel").innerText = (w * h).toLocaleString();
 }
 
-function resetSelection() { 
-    preview.active = false; selUI.style.display = "none"; selBox.style.display = "none"; 
-}
+function resetSelection() { preview.active = false; selUI.style.display = "none"; selBox.style.display = "none"; }
+function setMode(m) { currentMode = m; document.getElementById("modePan").classList.toggle("active", m === 'pan'); document.getElementById("modeSelect").classList.toggle("active", m === 'select'); if (m === 'pan') resetSelection(); }
 
-function setMode(m) {
-    currentMode = m;
-    document.getElementById("modePan").classList.toggle("active", m === 'pan');
-    document.getElementById("modeSelect").classList.toggle("active", m === 'select');
-    if (m === 'pan') resetSelection();
-}
-
-// Input manuale
-["ux", "uy", "uw", "uh"].forEach(id => {
-    document.getElementById(id).addEventListener("input", () => {
-        const n = { x:+ux.value, y:+uy.value, w:+uw.value, h:+uh.value };
-        if (!checkCollision(n.x, n.y, n.w, n.h)) updatePreview(n.x, n.y, n.w, n.h);
-    });
-});
-
-function checkCollision(x, y, w, h) { return blocks.some(b => x < b.x + b.w && x + w > b.x && y < b.y + b.h && y + h > b.y); }
 document.getElementById("modePan").onclick = () => setMode('pan');
 document.getElementById("modeSelect").onclick = () => setMode('select');
 document.getElementById("clearSelBtn").onclick = resetSelection;
