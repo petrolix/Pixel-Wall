@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Pixel Wall - Admin Suite Mobile</title>
+    <title>Pixel Wall - Admin Suite Left Layout</title>
     <style>
         *{margin:0;padding:0;box-sizing:border-box; touch-action: none; }
         body { 
@@ -19,9 +19,10 @@
             border-bottom: 2px solid #d4a017; z-index: 10000;
         }
 
-        .top-row { display: flex; align-items: center; justify-content: space-between; width: 100%; }
+        /* Allineamento tutto a sinistra */
+        .top-row { display: flex; align-items: center; justify-content: flex-start; width: 100%; flex-wrap: wrap; gap: 10px; }
         .stats-row { 
-            display: flex; align-items: center; justify-content: space-between; width: 100%;
+            display: flex; align-items: center; justify-content: flex-start; width: 100%; gap: 15px;
             font-family: monospace; font-size: 11px; color: #888; 
             background: #000; padding: 6px 10px; border-radius: 6px; border: 1px solid #222;
         }
@@ -29,23 +30,23 @@
         .controls-group { display: flex; align-items: center; gap: 8px; }
         #adminArea { display: none; align-items: center; gap: 8px; }
 
-        /* NUOVO PANNELLO SELEZIONE (Sotto le statistiche) */
+        /* PANNELLO SELEZIONE */
         #selectionUI { 
             display: none; 
             flex-wrap: wrap;
             align-items: center; 
-            justify-content: center;
+            justify-content: flex-start;
             gap: 8px; 
             background: #252525; 
             padding: 10px; 
             border-radius: 8px; 
             border: 1px solid #d4a017;
-            margin-top: 5px;
+            width: 100%;
         }
         
         .sel-field { display: flex; align-items: center; gap: 3px; font-size: 11px; color: #aaa; }
         input[type="number"] { width: 45px; background: #000; border: 1px solid #555; color: #d4a017; padding: 4px; border-radius: 4px; text-align: center; }
-        #fileInput { font-size: 11px; color: #aaa; flex-grow: 1; min-width: 150px; }
+        #fileInput { font-size: 11px; color: #aaa; min-width: 150px; }
 
         .mode-toggle { display: flex; background: #000; padding: 2px; border-radius: 8px; border: 1px solid #444; }
         .mode-btn { background: transparent; color: #666; border: none; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 10px; font-weight: bold; }
@@ -58,6 +59,9 @@
 
         #canvas-container { flex-grow: 1; position: relative; overflow: hidden; background: #000; }
         canvas { display: block; image-rendering: pixelated; }
+        
+        /* Spostamento etichetta coordinate a sinistra all'interno della riga */
+        #coords-label { color: #555; margin-left: auto; } /* Mantiene le coordinate separate a destra se piace, o rimuovi margin-left per averle attaccate alle stats */
     </style>
 </head>
 <body>
@@ -83,24 +87,22 @@
     </div>
 
     <div class="stats-row">
-        <div style="display:flex; align-items:center; gap:10px;">
-            <span style="color:#d4a017; font-weight:bold;">PIXEL:</span>
-            <div class="stat-item">Disp: <b id="statFree">0</b></div>
-            <div class="stat-item">Occ: <b id="statUsed">0</b></div>
-            <div id="sel-count-box" style="color:#00ffcc; font-weight:bold; display:none;">Area: <span id="statSel">0</span> px</div>
-        </div>
-        <div id="coords-label" style="color:#555;">X:0 Y:0</div>
+        <span style="color:#d4a017; font-weight:bold;">PIXEL:</span>
+        <div class="stat-item">Disp: <b id="statFree">0</b></div>
+        <div class="stat-item">Occ: <b id="statUsed">0</b></div>
+        <div id="sel-count-box" style="color:#00ffcc; font-weight:bold; display:none;">Area: <span id="statSel">0</span> px</div>
+        <div id="coords-label">X:0 Y:0</div>
     </div>
 
     <div id="selectionUI">
-        <div style="display:flex; gap:8px; width:100%; justify-content:center;">
+        <div style="display:flex; gap:8px; width:100%; justify-content:flex-start; align-items:center;">
             <div class="sel-field">X <input type="number" id="ux"></div>
             <div class="sel-field">Y <input type="number" id="uy"></div>
             <div class="sel-field">W <input type="number" id="uw"></div>
             <div class="sel-field">H <input type="number" id="uh"></div>
             <button id="clearSelBtn" style="background:none; border:none; color:#f88; font-size:18px; padding:0 5px;">✕</button>
         </div>
-        <div style="display:flex; gap:8px; width:100%; align-items:center; border-top:1px solid #444; padding-top:8px;">
+        <div style="display:flex; gap:8px; width:100%; align-items:center; border-top:1px solid #444; padding-top:8px; justify-content:flex-start;">
             <input type="file" id="fileInput" accept="image/*">
             <button id="saveBtn">PUBBLICA BLOCCO</button>
         </div>
@@ -113,7 +115,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 
 <script>
-// CONFIGURAZIONE (Usa i tuoi dati originali)
 firebase.initializeApp({ apiKey:"AIzaSyDFPiQn3Uq7_OA0e7UxNoeze8z_EfndwsU", authDomain:"pixel-wall-ff621.firebaseapp.com", projectId:"pixel-wall-ff621" });
 const db = firebase.firestore();
 const CLOUD = "dkwijnvsl", PRESET = "pixelwall", W=1280, H=720;
@@ -150,7 +151,7 @@ function draw() {
     ctx.scale(scale, scale);
     ctx.fillStyle = "#111"; ctx.fillRect(0, 0, W, H);
     if (scale > 5) {
-        ctx.beginPath(); ctx.strokeStyle = "rgba(212,160,23,0.1)"; ctx.lineWidth = 1/scale;
+        ctx.beginPath(); ctx.strokeStyle = "rgba(212,160,23,0.15)"; ctx.lineWidth = 1/scale;
         for(let x=0; x<=W; x+=10) { ctx.moveTo(x,0); ctx.lineTo(x,H); }
         for(let y=0; y<=H; y+=10) { ctx.moveTo(0,y); ctx.lineTo(W,y); }
         ctx.stroke();
@@ -173,7 +174,6 @@ function draw() {
 function loop() { draw(); requestAnimationFrame(loop); }
 loop();
 
-// LOGIN
 document.getElementById("loginBtn").onclick = () => {
     if(prompt("Password:") === "admin123") {
         isAdmin = true;
@@ -182,7 +182,6 @@ document.getElementById("loginBtn").onclick = () => {
     }
 };
 
-// PUBBLICAZIONE
 document.getElementById("saveBtn").onclick = async () => {
     const file = document.getElementById("fileInput").files[0];
     if(!file || !preview.active) return alert("Scegli area e file");
@@ -210,7 +209,6 @@ document.getElementById("removeBtn").onclick = async () => {
     document.getElementById("removeBtn").style.display = "none";
 };
 
-// ZOOM E PAN
 function applyZoom(s, cx, cy) {
     const ns = Math.max(0.1, Math.min(60, scale * s));
     const wx = (cx - ox) / scale, wy = (cy - oy) / scale;
@@ -274,13 +272,28 @@ function updatePreview(x, y, w, h) {
     preview = { x, y, w, h, active: true };
     selUI.style.display = "flex";
     selBox.style.display = "block";
-    ux.value = x; uy.value = y; uw.value = w; uh.value = h;
+    document.getElementById("ux").value = x; 
+    document.getElementById("uy").value = y; 
+    document.getElementById("uw").value = w; 
+    document.getElementById("uh").value = h;
     document.getElementById("statSel").innerText = (w * h).toLocaleString();
 }
 
 function resetSelection() { preview.active = false; selUI.style.display = "none"; selBox.style.display = "none"; }
 function setMode(m) { currentMode = m; document.getElementById("modePan").classList.toggle("active", m === 'pan'); document.getElementById("modeSelect").classList.toggle("active", m === 'select'); if (m === 'pan') resetSelection(); }
 
+// CORREZIONE DEGLI INPUT MANUALE (Puntatori DOM espliciti)
+["ux", "uy", "uw", "uh"].forEach(id => {
+    document.getElementById(id).addEventListener("input", () => {
+        const nx = parseInt(document.getElementById("ux").value) || 0;
+        const ny = parseInt(document.getElementById("uy").value) || 0;
+        const nw = parseInt(document.getElementById("uw").value) || 1;
+        const nh = parseInt(document.getElementById("uh").value) || 1;
+        if (!checkCollision(nx, ny, nw, nh)) updatePreview(nx, ny, nw, nh);
+    });
+});
+
+function checkCollision(x, y, w, h) { return blocks.some(b => x < b.x + b.w && x + w > b.x && y < b.y + b.h && y + h > b.y); }
 document.getElementById("modePan").onclick = () => setMode('pan');
 document.getElementById("modeSelect").onclick = () => setMode('select');
 document.getElementById("clearSelBtn").onclick = resetSelection;
