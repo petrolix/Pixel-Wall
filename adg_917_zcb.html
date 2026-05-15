@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Pixel Wall - Admin Suite Left Layout</title>
+    <title>Pixel Wall - Admin Suite</title>
     <style>
         *{margin:0;padding:0;box-sizing:border-box; touch-action: none; }
         body { 
@@ -19,7 +19,6 @@
             border-bottom: 2px solid #d4a017; z-index: 10000;
         }
 
-        /* Allineamento tutto a sinistra */
         .top-row { display: flex; align-items: center; justify-content: flex-start; width: 100%; flex-wrap: wrap; gap: 10px; }
         .stats-row { 
             display: flex; align-items: center; justify-content: flex-start; width: 100%; gap: 15px;
@@ -30,7 +29,6 @@
         .controls-group { display: flex; align-items: center; gap: 8px; }
         #adminArea { display: none; align-items: center; gap: 8px; }
 
-        /* PANNELLO SELEZIONE */
         #selectionUI { 
             display: none; 
             flex-wrap: wrap;
@@ -46,6 +44,7 @@
         
         .sel-field { display: flex; align-items: center; gap: 3px; font-size: 11px; color: #aaa; }
         input[type="number"] { width: 45px; background: #000; border: 1px solid #555; color: #d4a017; padding: 4px; border-radius: 4px; text-align: center; }
+        input[type="text"] { background: #000; border: 1px solid #555; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 11px; width: 180px; }
         #fileInput { font-size: 11px; color: #aaa; min-width: 150px; }
 
         .mode-toggle { display: flex; background: #000; padding: 2px; border-radius: 8px; border: 1px solid #444; }
@@ -59,9 +58,7 @@
 
         #canvas-container { flex-grow: 1; position: relative; overflow: hidden; background: #000; }
         canvas { display: block; image-rendering: pixelated; }
-        
-        /* Spostamento etichetta coordinate a sinistra all'interno della riga */
-        #coords-label { color: #555; margin-left: auto; } /* Mantiene le coordinate separate a destra se piace, o rimuovi margin-left per averle attaccate alle stats */
+        #coords-label { color: #555; margin-left: auto; }
     </style>
 </head>
 <body>
@@ -95,11 +92,12 @@
     </div>
 
     <div id="selectionUI">
-        <div style="display:flex; gap:8px; width:100%; justify-content:flex-start; align-items:center;">
+        <div style="display:flex; gap:8px; width:100%; justify-content:flex-start; align-items:center; flex-wrap: wrap;">
             <div class="sel-field">X <input type="number" id="ux"></div>
             <div class="sel-field">Y <input type="number" id="uy"></div>
             <div class="sel-field">W <input type="number" id="uw"></div>
             <div class="sel-field">H <input type="number" id="uh"></div>
+            <input type="text" id="linkUrl" placeholder="Inserisci Link reindirizzamento...">
             <button id="clearSelBtn" style="background:none; border:none; color:#f88; font-size:18px; padding:0 5px;">✕</button>
         </div>
         <div style="display:flex; gap:8px; width:100%; align-items:center; border-top:1px solid #444; padding-top:8px; justify-content:flex-start;">
@@ -184,14 +182,27 @@ document.getElementById("loginBtn").onclick = () => {
 
 document.getElementById("saveBtn").onclick = async () => {
     const file = document.getElementById("fileInput").files[0];
+    const targetLink = document.getElementById("linkUrl").value.trim();
     if(!file || !preview.active) return alert("Scegli area e file");
+    
     const btn = document.getElementById("saveBtn");
     btn.disabled = true; btn.innerText = "CARICO...";
     const form = new FormData(); form.append("file", file); form.append("upload_preset", PRESET);
     try {
         const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD}/image/upload`, { method: "POST", body: form });
         const data = await res.json();
-        await db.collection("blocks").add({ img: data.secure_url, delete_token: data.delete_token, x: preview.x, y: preview.y, w: preview.w, h: preview.h });
+        
+        // Salvataggio con l'attributo strutturato del Link
+        await db.collection("blocks").add({ 
+            img: data.secure_url, 
+            delete_token: data.delete_token, 
+            x: preview.x, 
+            y: preview.y, 
+            w: preview.w, 
+            h: preview.h,
+            link: targetLink // Memorizza la stringa dell'URL su Firestore
+        });
+        document.getElementById("linkUrl").value = "";
         resetSelection();
     } catch(e) { alert("Errore"); }
     btn.disabled = false; btn.innerText = "PUBBLICA BLOCCO";
@@ -282,7 +293,6 @@ function updatePreview(x, y, w, h) {
 function resetSelection() { preview.active = false; selUI.style.display = "none"; selBox.style.display = "none"; }
 function setMode(m) { currentMode = m; document.getElementById("modePan").classList.toggle("active", m === 'pan'); document.getElementById("modeSelect").classList.toggle("active", m === 'select'); if (m === 'pan') resetSelection(); }
 
-// CORREZIONE DEGLI INPUT MANUALE (Puntatori DOM espliciti)
 ["ux", "uy", "uw", "uh"].forEach(id => {
     document.getElementById(id).addEventListener("input", () => {
         const nx = parseInt(document.getElementById("ux").value) || 0;
