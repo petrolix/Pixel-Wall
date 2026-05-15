@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Pixel Wall -2Stats & Pro Zoom</title>
+    <title>Pixel Wall - Selezione Pro</title>
     <style>
         *{margin:0;padding:0;box-sizing:border-box; touch-action: none; }
         body { 
@@ -19,21 +19,14 @@
             border-bottom: 1px solid #333; z-index: 10000;
         }
 
-        .top-row, .stats-row { display: flex; align-items: center; justify-content: space-between; width: 100%; }
-        
-        .controls-group { display: flex; align-items: center; gap: 10px; }
-        
-        /* Stile Seconda Riga (Statistiche) */
+        .top-row { display: flex; align-items: center; justify-content: space-between; width: 100%; flex-wrap: wrap; gap: 10px; }
         .stats-row { 
+            display: flex; align-items: center; justify-content: space-between; width: 100%;
             font-family: monospace; font-size: 11px; color: #888; 
             background: #000; padding: 5px 12px; border-radius: 6px; border: 1px solid #222;
         }
-        #stats-label { color: #555; font-weight: bold; margin-right: 5px; text-transform: uppercase; letter-spacing: 0.5px; }
         
-        .stat-item b { color: lime; }
-        .stat-item.total b { color: #666; }
-        .stat-item.free b { color: #00ffcc; }
-
+        .controls-group { display: flex; align-items: center; gap: 10px; }
         .mode-toggle { display: flex; background: #000; padding: 2px; border-radius: 8px; border: 1px solid #444; }
         .mode-btn {
             background: transparent; color: #666; border: none; padding: 6px 10px;
@@ -41,17 +34,22 @@
         }
         .mode-btn.active { background: #333; color: lime; }
 
-        #zoom-level { font-family: monospace; font-size: 11px; color: lime; min-width: 40px; text-align: center; }
-
-        #selectionUI { display: flex; align-items: center; gap: 8px; visibility: hidden; }
-        input { width: 45px; background: #000; border: 1px solid #555; color: lime; padding: 3px; border-radius: 4px; text-align: center; font-size: 11px; }
+        /* UI SELEZIONE */
+        #selectionUI { 
+            display: none; align-items: center; gap: 6px; 
+            background: #252525; padding: 4px 10px; border-radius: 8px; border: 1px solid lime;
+        }
+        .sel-field { display: flex; align-items: center; gap: 3px; font-size: 10px; color: #aaa; }
+        input { width: 42px; background: #000; border: 1px solid #555; color: lime; padding: 2px; border-radius: 4px; text-align: center; font-size: 11px; }
         
+        /* Statistiche */
+        #stats-label { color: #555; font-weight: bold; margin-right: 5px; }
+        .stat-item b { color: lime; }
+        #sel-count-box { color: yellow; font-weight: bold; margin-left: 10px; display: none; }
+
         #canvas-container { flex-grow: 1; position: relative; overflow: hidden; background: #000; }
         canvas { display: block; image-rendering: pixelated; }
-
-        /* Bottoni */
-        button { background:#333; color:white; border:1px solid #444; border-radius:4px; cursor:pointer; }
-        button:hover { background:#444; border-color:#666; }
+        button { background:#333; color:white; border:1px solid #444; border-radius:4px; cursor:pointer; padding: 4px 8px; font-size: 11px; }
     </style>
 </head>
 <body>
@@ -64,26 +62,28 @@
                 <button id="modeSelect" class="mode-btn">SELEZIONA</button>
             </div>
             <div style="display:flex; align-items:center; gap:5px;">
-                <button id="zoomOut" style="padding:2px 8px;">-</button>
-                <span id="zoom-level">100%</span>
-                <button id="zoomIn" style="padding:2px 8px;">+</button>
+                <button id="zoomOut">-</button>
+                <span id="zoom-level" style="color:lime; font-family:monospace; min-width:35px;">100%</span>
+                <button id="zoomIn">+</button>
             </div>
-            <button id="resetBtn" style="padding:4px 8px; font-size:10px;">RESET</button>
+            <button id="resetBtn">RESET</button>
         </div>
 
         <div id="selectionUI">
-            <input type="number" id="ux"> <input type="number" id="uy">
-            <input type="number" id="uw"> <input type="number" id="uh">
-            <button id="clearSelBtn" style="color:#f88; background:none; border:none; font-weight:bold; font-size:14px; padding:0 5px;">✕</button>
+            <div class="sel-field">X <input type="number" id="ux"></div>
+            <div class="sel-field">Y <input type="number" id="uy"></div>
+            <div class="sel-field">W <input type="number" id="uw"></div>
+            <div class="sel-field">H <input type="number" id="uh"></div>
+            <button id="clearSelBtn" style="color:#f88; border:none; background:none; font-size:16px;">✕</button>
         </div>
     </div>
 
     <div class="stats-row">
         <div style="display:flex; align-items:center;">
-            <span id="stats-label">Statistiche Pixel:</span>
-            <div class="stat-item free" style="margin-right:15px;">Disp: <b id="statFree">0</b></div>
-            <div class="stat-item" style="margin-right:15px;">Occ: <b id="statUsed">0</b></div>
-            <div class="stat-item total">Tot: <b id="statTotal">0</b></div>
+            <span id="stats-label">PIXEL:</span>
+            <div class="stat-item" style="margin-right:10px;">Disp: <b id="statFree">0</b></div>
+            <div class="stat-item" style="margin-right:10px;">Occ: <b id="statUsed">0</b></div>
+            <div id="sel-count-box">Area: <span id="statSel">0</span> px</div>
         </div>
         <div id="coords-label" style="color:#555;">X:0 Y:0</div>
     </div>
@@ -98,7 +98,7 @@
 firebase.initializeApp({ apiKey:"AIzaSyDFPiQn3Uq7_OA0e7UxNoeze8z_EfndwsU", authDomain:"pixel-wall-ff621.firebaseapp.com", projectId:"pixel-wall-ff621" });
 const db = firebase.firestore();
 const W = 1280, H = 720, c = document.getElementById("c"), ctx = c.getContext("2d");
-const selUI = document.getElementById("selectionUI"), zoomLabel = document.getElementById("zoom-level");
+const selUI = document.getElementById("selectionUI"), selBox = document.getElementById("sel-count-box");
 
 let scale = 1, ox = 0, oy = 0, blocks = [], cache = {};
 let preview = { x: 0, y: 0, w: 0, h: 0, active: false };
@@ -117,15 +117,11 @@ db.collection("blocks").onSnapshot(s => {
 });
 
 function updateStats() {
-    const total = W * H;
     let used = 0;
     blocks.forEach(b => used += (b.w * b.h));
-    document.getElementById("statTotal").innerText = total.toLocaleString();
+    document.getElementById("statFree").innerText = (W*H - used).toLocaleString();
     document.getElementById("statUsed").innerText = used.toLocaleString();
-    document.getElementById("statFree").innerText = (total - used).toLocaleString();
 }
-
-function updateZoomUI() { zoomLabel.innerText = Math.round(scale * 100) + "%"; }
 
 function draw() {
     ctx.clearRect(0, 0, c.width, c.height);
@@ -133,7 +129,6 @@ function draw() {
     ctx.translate(Math.round(ox), Math.round(oy));
     ctx.scale(scale, scale);
     ctx.fillStyle = "#111"; ctx.fillRect(0, 0, W, H);
-    
     if (scale > 8) {
         ctx.beginPath(); ctx.strokeStyle = "rgba(255,255,255,0.1)"; ctx.lineWidth = 1/scale;
         for(let x=0; x<=W; x++) { ctx.moveTo(x,0); ctx.lineTo(x,H); }
@@ -156,41 +151,26 @@ loop();
 
 function applyZoom(s, centerX, centerY) {
     const newScale = Math.max(0.1, Math.min(60, scale * s));
-    const worldX = (centerX - ox) / scale;
-    const worldY = (centerY - oy) / scale;
+    const worldX = (centerX - ox) / scale, worldY = (centerY - oy) / scale;
     scale = newScale;
-    ox = centerX - worldX * scale;
-    oy = centerY - worldY * scale;
-    updateZoomUI();
+    ox = centerX - worldX * scale; oy = centerY - worldY * scale;
+    document.getElementById("zoom-level").innerText = Math.round(scale * 100) + "%";
 }
 
-c.addEventListener("wheel", e => {
-    e.preventDefault();
-    applyZoom(e.deltaY < 0 ? 1.1 : 0.9, e.clientX, e.clientY);
-}, {passive: false});
-
+c.addEventListener("wheel", e => { e.preventDefault(); applyZoom(e.deltaY < 0 ? 1.1 : 0.9, e.clientX, e.clientY); }, {passive: false});
 document.getElementById("zoomIn").onclick = () => applyZoom(1.2, c.width/2, c.height/2);
 document.getElementById("zoomOut").onclick = () => applyZoom(0.8, c.width/2, c.height/2);
 
-let evCache = [];
-let prevDiff = -1;
-let isMouseDown = false;
-let startPos = {x:0, y:0}, lastM = {x:0, y:0};
+let evCache = [], prevDiff = -1, isMouseDown = false, startPos = null, lastM = {x:0, y:0};
 
 c.onpointerdown = e => {
-    evCache.push(e);
-    isMouseDown = true;
-    lastM = { x: e.clientX, y: e.clientY };
+    evCache.push(e); isMouseDown = true; lastM = { x: e.clientX, y: e.clientY };
     const r = c.getBoundingClientRect();
-    const wp = {
-        x: Math.floor((e.clientX - r.left - ox) / scale),
-        y: Math.floor((e.clientY - r.top - oy) / scale)
-    };
+    const wp = { x: Math.floor((e.clientX-r.left-ox)/scale), y: Math.floor((e.clientY-r.top-oy)/scale) };
     if (evCache.length === 1 && currentMode === 'select') {
-        const hit = blocks.some(b => wp.x >= b.x && wp.x < b.x + b.w && wp.y >= b.y && wp.y < b.y + b.h);
+        const hit = blocks.some(b => wp.x >= b.x && wp.x < b.x+b.w && wp.y >= b.y && wp.y < b.y+b.h);
         if (!hit && wp.x >= 0 && wp.x < W && wp.y >= 0 && wp.y < H) {
-            startPos = wp;
-            updatePreview(wp.x, wp.y, 1, 1);
+            startPos = wp; updatePreview(wp.x, wp.y, 1, 1);
         } else startPos = null;
     }
 };
@@ -199,22 +179,17 @@ c.onpointermove = e => {
     const index = evCache.findIndex(ev => ev.pointerId === e.pointerId);
     if (index !== -1) evCache[index] = e;
     if (evCache.length === 2) {
-        const curDiff = Math.hypot(evCache[0].clientX - evCache[1].clientX, evCache[0].clientY - evCache[1].clientY);
-        const midX = (evCache[0].clientX + evCache[1].clientX) / 2;
-        const midY = (evCache[0].clientY + evCache[1].clientY) / 2;
-        if (prevDiff > 0) applyZoom(curDiff / prevDiff, midX, midY);
-        prevDiff = curDiff;
-        return;
+        const curDiff = Math.hypot(evCache[0].clientX-evCache[1].clientX, evCache[0].clientY-evCache[1].clientY);
+        const midX = (evCache[0].clientX+evCache[1].clientX)/2, midY = (evCache[0].clientY+evCache[1].clientY)/2;
+        if (prevDiff > 0) applyZoom(curDiff/prevDiff, midX, midY);
+        prevDiff = curDiff; return;
     }
     if (isMouseDown && evCache.length === 1) {
         const r = c.getBoundingClientRect();
-        const cw = {
-            x: Math.floor((e.clientX - r.left - ox) / scale),
-            y: Math.floor((e.clientY - r.top - oy) / scale)
-        };
+        const cw = { x: Math.floor((e.clientX-r.left-ox)/scale), y: Math.floor((e.clientY-r.top-oy)/scale) };
         if (currentMode === 'select' && startPos) {
             let x1 = Math.max(0, Math.min(startPos.x, cw.x)), y1 = Math.max(0, Math.min(startPos.y, cw.y));
-            let x2 = Math.min(W, Math.max(startPos.x, cw.x) + 1), y2 = Math.min(H, Math.max(startPos.y, cw.y) + 1);
+            let x2 = Math.min(W, Math.max(startPos.x, cw.x)+1), y2 = Math.min(H, Math.max(startPos.y, cw.y)+1);
             if (!checkCollision(x1, y1, x2-x1, y2-y1)) updatePreview(x1, y1, x2-x1, y2-y1);
         } else {
             ox += e.clientX - lastM.x; oy += e.clientY - lastM.y;
@@ -230,25 +205,42 @@ c.onpointerup = c.onpointercancel = e => {
     isMouseDown = false;
 };
 
+function updatePreview(x, y, w, h) {
+    preview = { x, y, w, h, active: true };
+    selUI.style.display = "flex";
+    selBox.style.display = "block";
+    document.getElementById("ux").value = x; document.getElementById("uy").value = y;
+    document.getElementById("uw").value = w; document.getElementById("uh").value = h;
+    document.getElementById("statSel").innerText = (w * h).toLocaleString();
+}
+
+// GESTIONE INPUT MANUALE
+["ux", "uy", "uw", "uh"].forEach(id => {
+    document.getElementById(id).addEventListener("input", () => {
+        const nx = parseInt(document.getElementById("ux").value) || 0;
+        const ny = parseInt(document.getElementById("uy").value) || 0;
+        const nw = parseInt(document.getElementById("uw").value) || 1;
+        const nh = parseInt(document.getElementById("uh").value) || 1;
+        if (!checkCollision(nx, ny, nw, nh)) updatePreview(nx, ny, nw, nh);
+    });
+});
+
 function setMode(m) {
     currentMode = m;
     document.getElementById("modePan").classList.toggle("active", m === 'pan');
     document.getElementById("modeSelect").classList.toggle("active", m === 'select');
     if (m === 'pan') resetSelection();
 }
+function resetSelection() { 
+    preview.active = false; selUI.style.display = "none"; selBox.style.display = "none"; 
+}
 document.getElementById("modePan").onclick = () => setMode('pan');
 document.getElementById("modeSelect").onclick = () => setMode('select');
 document.getElementById("clearSelBtn").onclick = resetSelection;
+document.getElementById("resetBtn").onclick = () => { scale = 1; ox = (c.width-W)/2; oy = (c.height-H)/2; applyZoom(1, 0, 0); };
 
-function resetSelection() { preview.active = false; selUI.style.visibility = "hidden"; }
 function checkCollision(x, y, w, h) { return blocks.some(b => x < b.x + b.w && x + w > b.x && y < b.y + b.h && y + h > b.y); }
-function updatePreview(x, y, w, h) {
-    preview = { x, y, w, h, active: true }; selUI.style.visibility = "visible";
-    ux.value = x; uy.value = y; uw.value = w; uh.value = h;
-}
-
-document.getElementById("resetBtn").onclick = () => { scale = 1; ox = (c.width-W)/2; oy = (c.height-H)/2; updateZoomUI(); };
-window.onload = () => { ox = (c.width-W)/2; oy = (c.height-H)/2; updateZoomUI(); };
+window.onload = () => { ox = (c.width-W)/2; oy = (c.height-H)/2; };
 </script>
 </body>
 </html>
