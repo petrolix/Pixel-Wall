@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Pixel Wall -2Master Suite</title>
+    <title>Pixel Wall - Master Suite</title>
     <style>
         *{margin:0;padding:0;box-sizing:border-box;}
         body { 
@@ -24,6 +24,11 @@
             transition: all 0.2s;
         }
         .mode-btn.active { background: #333; color: lime; }
+
+        /* Stile Zoom Group */
+        .zoom-group { display: flex; align-items: center; gap: 5px; background: #252525; padding: 3px 8px; border-radius: 8px; border: 1px solid #444; }
+        #zoom-level { font-family: monospace; font-size: 12px; color: lime; min-width: 45px; text-align: center; }
+
         #selectionUI {
             display: flex; align-items: center; gap: 10px;
             background: #252525; padding: 5px 12px; border-radius: 8px;
@@ -32,9 +37,13 @@
         #selectionUI.active { visibility: visible; border-color: lime; }
         .input-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #888; }
         input { width: 50px; background: #000; border: 1px solid #555; color: lime; padding: 3px; border-radius: 4px; text-align: center; }
+        
         button { background: #333; color: #eee; border: 1px solid #555; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; }
+        button:hover { border-color: #777; background: #444; }
+        .btn-zoom { padding: 4px 10px; font-size: 14px; font-weight: bold; }
         .btn-red { color: #f88; border-color: #555; }
         .btn-red:hover { background: #400; color: #fff; border-color: red; }
+        
         #canvas-container { flex-grow: 1; position: relative; overflow: hidden; }
         canvas.mode-pan { cursor: grab; }
         canvas.mode-pan:active { cursor: grabbing; }
@@ -49,9 +58,17 @@
             <button id="modePan" class="mode-btn active">NAVIGA</button>
             <button id="modeSelect" class="mode-btn">SELEZIONA</button>
         </div>
+        
+        <div class="zoom-group">
+            <button id="zoomOut" class="btn-zoom">-</button>
+            <span id="zoom-level">100%</span>
+            <button id="zoomIn" class="btn-zoom">+</button>
+        </div>
+
         <button id="resetBtn">Centra</button>
         <span id="coords-label" style="font-family: monospace; color: #555; font-size: 12px;">X:0 Y:0</span>
     </div>
+
     <div id="selectionUI">
         <div class="input-item">X <input type="number" id="ux"></div>
         <div class="input-item">Y <input type="number" id="uy"></div>
@@ -71,6 +88,7 @@ firebase.initializeApp({ apiKey:"AIzaSyDFPiQn3Uq7_OA0e7UxNoeze8z_EfndwsU", authD
 const db = firebase.firestore();
 const W = 1280, H = 720, c = document.getElementById("c"), ctx = c.getContext("2d");
 const selUI = document.getElementById("selectionUI");
+const zoomLabel = document.getElementById("zoom-level");
 
 let scale = 1, ox = 0, oy = 0, blocks = [], cache = {};
 let preview = { x: 0, y: 0, w: 0, h: 0, active: false };
@@ -84,6 +102,11 @@ window.addEventListener("resize", resize);
 resize();
 
 db.collection("blocks").onSnapshot(s => { blocks = s.docs.map(d => d.data()); });
+
+function updateZoomUI() {
+    // Calcola la percentuale arrotondata
+    zoomLabel.innerText = Math.round(scale * 100) + "%";
+}
 
 function draw() {
     ctx.clearRect(0, 0, c.width, c.height);
@@ -111,6 +134,17 @@ function draw() {
 function loop() { draw(); requestAnimationFrame(loop); }
 loop();
 
+/* ================= CONTROLLI ZOOM ================= */
+document.getElementById("zoomIn").onclick = () => {
+    scale = Math.min(60, scale * 1.25);
+    updateZoomUI();
+};
+document.getElementById("zoomOut").onclick = () => {
+    scale = Math.max(0.1, scale * 0.8);
+    updateZoomUI();
+};
+
+/* ================= GESTIONE MODALITÀ ================= */
 document.getElementById("modePan").onclick = () => setMode('pan');
 document.getElementById("modeSelect").onclick = () => setMode('select');
 
@@ -129,6 +163,7 @@ function resetSelection() {
 }
 document.getElementById("clearSelBtn").onclick = resetSelection;
 
+/* ================= LOGICA INPUT ================= */
 let isAction = false, startPos = {x:0, y:0}, lastM = {x:0, y:0};
 
 c.addEventListener("pointerdown", e => {
@@ -159,11 +194,7 @@ window.addEventListener("pointermove", e => {
         let y1 = Math.max(0, Math.min(startPos.y, cw.y));
         let x2 = Math.min(W, Math.max(startPos.x, cw.x) + 1);
         let y2 = Math.min(H, Math.max(startPos.y, cw.y) + 1);
-        
-        // Verifica se l'area che sto creando tocca blocchi esistenti
-        if (!checkCollision(x1, y1, x2-x1, y2-y1)) {
-            updatePreview(x1, y1, x2 - x1, y2 - y1);
-        }
+        if (!checkCollision(x1, y1, x2-x1, y2-y1)) updatePreview(x1, y1, x2 - x1, y2 - y1);
     } else {
         ox += e.clientX - lastM.x;
         oy += e.clientY - lastM.y;
@@ -173,11 +204,8 @@ window.addEventListener("pointermove", e => {
 
 window.addEventListener("pointerup", () => { isAction = false; lastM = {x:0, y:0}; });
 
-// Funzione fondamentale: controlla se un rettangolo si sovrappone a immagini salvate
 function checkCollision(x, y, w, h) {
-    return blocks.some(b => {
-        return x < b.x + b.w && x + w > b.x && y < b.y + b.h && y + h > b.y;
-    });
+    return blocks.some(b => x < b.x + b.w && x + w > b.x && y < b.y + b.h && y + h > b.y);
 }
 
 function updatePreview(x, y, w, h) {
@@ -191,11 +219,8 @@ function updatePreview(x, y, w, h) {
 
 ["ux", "uy", "uw", "uh"].forEach(id => {
     document.getElementById(id).addEventListener("input", () => {
-        const nx = parseInt(document.getElementById("ux").value) || 0;
-        const ny = parseInt(document.getElementById("uy").value) || 0;
-        const nw = parseInt(document.getElementById("uw").value) || 1;
-        const nh = parseInt(document.getElementById("uh").value) || 1;
-        // Se il cambio manuale causa collisione, non aggiorna
+        const nx = parseInt(document.getElementById("ux").value) || 0, ny = parseInt(document.getElementById("uy").value) || 0;
+        const nw = parseInt(document.getElementById("uw").value) || 1, nh = parseInt(document.getElementById("uh").value) || 1;
         if (!checkCollision(nx, ny, nw, nh)) updatePreview(nx, ny, nw, nh);
     });
 });
@@ -203,10 +228,14 @@ function updatePreview(x, y, w, h) {
 c.addEventListener("wheel", e => {
     e.preventDefault();
     scale = Math.max(0.1, Math.min(60, scale * (e.deltaY < 0 ? 1.1 : 0.9)));
+    updateZoomUI();
 }, {passive: false});
 
-document.getElementById("resetBtn").onclick = () => { scale = 1; ox = (c.width - W)/2; oy = (c.height - H)/2; };
-window.onload = () => { ox = (c.width - W)/2; oy = (c.height - H)/2; };
+document.getElementById("resetBtn").onclick = () => {
+    scale = 1; ox = (c.width - W)/2; oy = (c.height - H)/2;
+    updateZoomUI();
+};
+window.onload = () => { ox = (c.width - W)/2; oy = (c.height - H)/2; updateZoomUI(); };
 </script>
 </body>
 </html>
