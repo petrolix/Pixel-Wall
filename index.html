@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Pixel Wall - Touch Fixed</title>
+    <title>Pixel Wall - Stats & Pro Zoom</title>
     <style>
         *{margin:0;padding:0;box-sizing:border-box; touch-action: none; }
         body { 
@@ -12,27 +12,40 @@
             display: flex; flex-direction: column; height: 100vh;
             position: fixed; width: 100%; 
         }
+
         header {
-            background: #1a1a1a; color: white; padding: 10px 15px;
-            display: flex; align-items: center; justify-content: space-between;
+            background: #1a1a1a; color: white; padding: 8px 15px;
+            display: flex; flex-direction: column; gap: 8px;
             border-bottom: 1px solid #333; z-index: 10000;
         }
+
+        .top-row, .stats-row { display: flex; align-items: center; justify-content: space-between; width: 100%; }
+        
         .controls-group { display: flex; align-items: center; gap: 10px; }
+        
+        /* Stile Statistiche */
+        .stats-row { 
+            font-family: monospace; font-size: 11px; color: #888; 
+            background: #000; padding: 4px 10px; border-radius: 6px; border: 1px solid #222;
+        }
+        .stat-item b { color: lime; }
+        .stat-item.total b { color: #555; }
+        .stat-item.free b { color: #00ffcc; }
+
         .mode-toggle { display: flex; background: #000; padding: 2px; border-radius: 8px; border: 1px solid #444; }
         .mode-btn {
             background: transparent; color: #666; border: none; padding: 6px 10px;
             border-radius: 6px; cursor: pointer; font-size: 10px; font-weight: bold;
         }
         .mode-btn.active { background: #333; color: lime; }
-        .zoom-group { display: flex; align-items: center; gap: 5px; background: #252525; padding: 3px 8px; border-radius: 8px; border: 1px solid #444; }
+
         #zoom-level { font-family: monospace; font-size: 11px; color: lime; min-width: 40px; text-align: center; }
+
         #selectionUI {
-            display: flex; align-items: center; gap: 8px;
-            background: #252525; padding: 5px 10px; border-radius: 8px; border: 1px solid #444; visibility: hidden;
+            display: flex; align-items: center; gap: 8px; visibility: hidden;
         }
-        #selectionUI.active { visibility: visible; border-color: lime; }
-        input { width: 45px; background: #000; border: 1px solid #555; color: lime; padding: 3px; border-radius: 4px; text-align: center; font-size: 12px; }
-        button { background: #333; color: #eee; border: 1px solid #555; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 11px; }
+        input { width: 45px; background: #000; border: 1px solid #555; color: lime; padding: 3px; border-radius: 4px; text-align: center; font-size: 11px; }
+        
         #canvas-container { flex-grow: 1; position: relative; overflow: hidden; background: #000; }
         canvas { display: block; image-rendering: pixelated; }
     </style>
@@ -40,22 +53,32 @@
 <body>
 
 <header>
-    <div class="controls-group">
-        <div class="mode-toggle">
-            <button id="modePan" class="mode-btn active">NAVIGA</button>
-            <button id="modeSelect" class="mode-btn">SELEZIONA</button>
+    <div class="top-row">
+        <div class="controls-group">
+            <div class="mode-toggle">
+                <button id="modePan" class="mode-btn active">NAVIGA</button>
+                <button id="modeSelect" class="mode-btn">SELEZIONA</button>
+            </div>
+            <div style="display:flex; align-items:center; gap:5px;">
+                <button id="zoomOut" style="background:#333; color:white; border:1px solid #444; padding:2px 8px; border-radius:4px;">-</button>
+                <span id="zoom-level">100%</span>
+                <button id="zoomIn" style="background:#333; color:white; border:1px solid #444; padding:2px 8px; border-radius:4px;">+</button>
+            </div>
+            <button id="resetBtn" style="background:#333; color:white; border:1px solid #444; padding:4px 8px; border-radius:4px; font-size:10px;">RESET</button>
         </div>
-        <div class="zoom-group">
-            <button id="zoomOut">-</button>
-            <span id="zoom-level">100%</span>
-            <button id="zoomIn">+</button>
+
+        <div id="selectionUI">
+            <input type="number" id="ux"> <input type="number" id="uy">
+            <input type="number" id="uw"> <input type="number" id="uh">
+            <button id="clearSelBtn" style="color:#f88; background:none; border:none; font-weight:bold;">X</button>
         </div>
-        <button id="resetBtn">Centra</button>
     </div>
-    <div id="selectionUI">
-        <input type="number" id="ux"> <input type="number" id="uy">
-        <input type="number" id="uw"> <input type="number" id="uh">
-        <button id="clearSelBtn" style="color:#f88;">X</button>
+
+    <div class="stats-row">
+        <div class="stat-item free">Disponibili: <b id="statFree">0</b></div>
+        <div class="stat-item">Occupati: <b id="statUsed">0</b></div>
+        <div class="stat-item total">Totali: <b id="statTotal">0</b></div>
+        <div id="coords-label" style="color:#555;">X:0 Y:0</div>
     </div>
 </header>
 
@@ -81,7 +104,20 @@ function resize() {
 window.addEventListener("resize", resize);
 resize();
 
-db.collection("blocks").onSnapshot(s => { blocks = s.docs.map(d => d.data()); });
+// Aggiorna blocchi e statistiche
+db.collection("blocks").onSnapshot(s => { 
+    blocks = s.docs.map(d => d.data()); 
+    updateStats();
+});
+
+function updateStats() {
+    const total = W * H;
+    let used = 0;
+    blocks.forEach(b => used += (b.w * b.h));
+    document.getElementById("statTotal").innerText = total.toLocaleString();
+    document.getElementById("statUsed").innerText = used.toLocaleString();
+    document.getElementById("statFree").innerText = (total - used).toLocaleString();
+}
 
 function updateZoomUI() { zoomLabel.innerText = Math.round(scale * 100) + "%"; }
 
@@ -91,6 +127,7 @@ function draw() {
     ctx.translate(Math.round(ox), Math.round(oy));
     ctx.scale(scale, scale);
     ctx.fillStyle = "#111"; ctx.fillRect(0, 0, W, H);
+    
     if (scale > 8) {
         ctx.beginPath(); ctx.strokeStyle = "rgba(255,255,255,0.1)"; ctx.lineWidth = 1/scale;
         for(let x=0; x<=W; x++) { ctx.moveTo(x,0); ctx.lineTo(x,H); }
@@ -111,7 +148,32 @@ function draw() {
 function loop() { draw(); requestAnimationFrame(loop); }
 loop();
 
-/* ================= FIX DRAG & ZOOM ================= */
+/* ================= ZOOM AL CENTRO ================= */
+function applyZoom(s, centerX, centerY) {
+    const newScale = Math.max(0.1, Math.min(60, scale * s));
+    // Calcola la posizione relativa del mouse/centro rispetto all'origine del mondo
+    const worldX = (centerX - ox) / scale;
+    const worldY = (centerY - oy) / scale;
+    
+    scale = newScale;
+    
+    // Riposiziona l'origine in modo che il punto worldX/Y resti sotto il cursore
+    ox = centerX - worldX * scale;
+    oy = centerY - worldY * scale;
+    
+    updateZoomUI();
+}
+
+c.addEventListener("wheel", e => {
+    e.preventDefault();
+    const s = e.deltaY < 0 ? 1.1 : 0.9;
+    applyZoom(s, e.clientX, e.clientY);
+}, {passive: false});
+
+document.getElementById("zoomIn").onclick = () => applyZoom(1.2, c.width/2, c.height/2);
+document.getElementById("zoomOut").onclick = () => applyZoom(0.8, c.width/2, c.height/2);
+
+/* ================= LOGICA TOUCH & DRAG ================= */
 let evCache = [];
 let prevDiff = -1;
 let isMouseDown = false;
@@ -121,21 +183,17 @@ c.onpointerdown = e => {
     evCache.push(e);
     isMouseDown = true;
     lastM = { x: e.clientX, y: e.clientY };
-
     const r = c.getBoundingClientRect();
     const wp = {
         x: Math.floor((e.clientX - r.left - ox) / scale),
         y: Math.floor((e.clientY - r.top - oy) / scale)
     };
-
     if (evCache.length === 1 && currentMode === 'select') {
         const hit = blocks.some(b => wp.x >= b.x && wp.x < b.x + b.w && wp.y >= b.y && wp.y < b.y + b.h);
         if (!hit && wp.x >= 0 && wp.x < W && wp.y >= 0 && wp.y < H) {
             startPos = wp;
             updatePreview(wp.x, wp.y, 1, 1);
-        } else {
-            startPos = null; // Forza il pan se clicco su un blocco
-        }
+        } else startPos = null;
     }
 };
 
@@ -143,57 +201,39 @@ c.onpointermove = e => {
     const index = evCache.findIndex(ev => ev.pointerId === e.pointerId);
     if (index !== -1) evCache[index] = e;
 
-    // 1. GESTIONE ZOOM (2 dita)
     if (evCache.length === 2) {
         const curDiff = Math.hypot(evCache[0].clientX - evCache[1].clientX, evCache[0].clientY - evCache[1].clientY);
-        if (prevDiff > 0) {
-            const ratio = curDiff / prevDiff;
-            scale = Math.max(0.1, Math.min(60, scale * ratio));
-            updateZoomUI();
-        }
+        const midX = (evCache[0].clientX + evCache[1].clientX) / 2;
+        const midY = (evCache[0].clientY + evCache[1].clientY) / 2;
+        if (prevDiff > 0) applyZoom(curDiff / prevDiff, midX, midY);
         prevDiff = curDiff;
         return;
     }
 
-    // 2. GESTIONE DRAG / SELEZIONE (1 dito)
     if (isMouseDown && evCache.length === 1) {
         const r = c.getBoundingClientRect();
         const cw = {
             x: Math.floor((e.clientX - r.left - ox) / scale),
             y: Math.floor((e.clientY - r.top - oy) / scale)
         };
-
         if (currentMode === 'select' && startPos) {
-            // SELEZIONE
-            let x1 = Math.max(0, Math.min(startPos.x, cw.x));
-            let y1 = Math.max(0, Math.min(startPos.y, cw.y));
-            let x2 = Math.min(W, Math.max(startPos.x, cw.x) + 1);
-            let y2 = Math.min(H, Math.max(startPos.y, cw.y) + 1);
-            if (!checkCollision(x1, y1, x2-x1, y2-y1)) updatePreview(x1, y1, x2 - x1, y2 - y1);
+            let x1 = Math.max(0, Math.min(startPos.x, cw.x)), y1 = Math.max(0, Math.min(startPos.y, cw.y));
+            let x2 = Math.min(W, Math.max(startPos.x, cw.x) + 1), y2 = Math.min(H, Math.max(startPos.y, cw.y) + 1);
+            if (!checkCollision(x1, y1, x2-x1, y2-y1)) updatePreview(x1, y1, x2-x1, y2-y1);
         } else {
-            // PAN (Spostamento)
-            ox += e.clientX - lastM.x;
-            oy += e.clientY - lastM.y;
+            ox += e.clientX - lastM.x; oy += e.clientY - lastM.y;
             lastM = { x: e.clientX, y: e.clientY };
         }
+        document.getElementById("coords-label").innerText = `X:${cw.x} Y:${cw.y}`;
     }
-    
-    // Mostra sempre coordinate nel banner
-    const r = c.getBoundingClientRect();
-    const coordW = {
-        x: Math.floor((e.clientX - r.left - ox) / scale),
-        y: Math.floor((e.clientY - r.top - oy) / scale)
-    };
-    document.getElementById("coords-label").innerText = `X:${coordW.x} Y:${coordW.y}`;
 };
 
-c.onpointerup = c.onpointercancel = c.onpointerout = e => {
+c.onpointerup = c.onpointercancel = e => {
     evCache = evCache.filter(ev => ev.pointerId !== e.pointerId);
     if (evCache.length < 2) prevDiff = -1;
     isMouseDown = false;
 };
 
-/* ================= LOGICA UI ================= */
 function setMode(m) {
     currentMode = m;
     document.getElementById("modePan").classList.toggle("active", m === 'pan');
@@ -209,28 +249,13 @@ function checkCollision(x, y, w, h) {
 }
 
 function updatePreview(x, y, w, h) {
-    preview = { x, y, w, h, active: true };
-    selUI.style.visibility = "visible";
-    document.getElementById("ux").value = x; document.getElementById("uy").value = y;
-    document.getElementById("uw").value = w; document.getElementById("uh").value = h;
+    preview = { x, y, w, h, active: true }; selUI.style.visibility = "visible";
+    ux.value = x; uy.value = y; uw.value = w; uh.value = h;
 }
 
-["ux", "uy", "uw", "uh"].forEach(id => {
-    document.getElementById(id).addEventListener("input", () => {
-        const n = { x:+ux.value, y:+uy.value, w:+uw.value, h:+uh.value };
-        if (!checkCollision(n.x, n.y, n.w, n.h)) updatePreview(n.x, n.y, n.w, n.h);
-    });
-});
-
-c.addEventListener("wheel", e => {
-    e.preventDefault();
-    scale = Math.max(0.1, Math.min(60, scale * (e.deltaY < 0 ? 1.1 : 0.9)));
-    updateZoomUI();
-}, {passive: false});
-
-document.getElementById("zoomIn").onclick = () => { scale = Math.min(60, scale * 1.2); updateZoomUI(); };
-document.getElementById("zoomOut").onclick = () => { scale = Math.max(0.1, scale * 0.8); updateZoomUI(); };
-document.getElementById("resetBtn").onclick = () => { scale = 1; ox = (c.width-W)/2; oy = (c.height-H)/2; updateZoomUI(); };
+document.getElementById("resetBtn").onclick = () => {
+    scale = 1; ox = (c.width-W)/2; oy = (c.height-H)/2; updateZoomUI();
+};
 window.onload = () => { ox = (c.width-W)/2; oy = (c.height-H)/2; updateZoomUI(); };
 </script>
 </body>
