@@ -3,54 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Pixel Wall - Massive Experience</title>
+    <title>Pixel Wall - Professional Suite</title>
     <style>
         *{margin:0;padding:0;box-sizing:border-box;}
-        
         body { 
-            overflow:hidden; 
-            background:#0a0a0a; 
+            overflow:hidden; background:#0a0a0a; 
             font-family: 'Segoe UI', system-ui, sans-serif; 
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
+            display: flex; flex-direction: column; height: 100vh;
         }
 
-        /* Banner Superiore */
         header {
-            background: #1a1a1a;
-            color: white;
-            padding: 10px 20px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            border-bottom: 1px solid #333;
-            z-index: 10000;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+            background: #1a1a1a; color: white; padding: 10px 20px;
+            display: flex; align-items: center; justify-content: space-between;
+            border-bottom: 1px solid #333; z-index: 10000;
         }
 
         .controls-group { display: flex; align-items: center; gap: 15px; }
 
-        /* Pannello Selezione nel Banner */
         #selectionUI {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            background: #252525;
-            padding: 5px 15px;
-            border-radius: 8px;
-            border: 1px solid #444;
-            transition: opacity 0.3s;
-            opacity: 0.5; /* Più opaco se non attivo */
+            display: flex; align-items: center; gap: 10px;
+            background: #252525; padding: 5px 15px; border-radius: 8px;
+            border: 1px solid #444; visibility: hidden; /* Nascosto se non c'è selezione */
         }
-        #selectionUI.active { opacity: 1; border-color: lime; }
+        #selectionUI.active { visibility: visible; border-color: lime; }
 
-        .input-item { display: flex; align-items: center; gap: 5px; font-size: 12px; color: #aaa; }
-        
+        .input-item { display: flex; align-items: center; gap: 5px; font-size: 12px; color: #888; }
         input {
             width: 55px; background: #000; border: 1px solid #555; 
             color: lime; padding: 4px; border-radius: 4px; 
-            text-align: center; font-family: monospace; font-size: 13px;
+            text-align: center; font-family: monospace;
         }
 
         button {
@@ -58,29 +39,28 @@
             padding: 6px 12px; border-radius: 6px; cursor: pointer; 
             font-size: 12px; font-weight: bold; transition: 0.2s;
         }
-        button:hover { background: #444; border-color: lime; color: #fff; }
+        button:hover { background: #444; border-color: lime; }
+        .btn-red { border-color: #600; color: #f88; }
+        .btn-red:hover { background: #400; border-color: red; color: #fff; }
 
-        /* Area Canvas */
-        #canvas-container { flex-grow: 1; position: relative; overflow: hidden; }
+        #canvas-container { flex-grow: 1; position: relative; overflow: hidden; cursor: crosshair; }
         canvas { display: block; image-rendering: pixelated; touch-action: none; }
-        
-        #coords-label { font-size: 12px; color: #666; font-family: monospace; }
     </style>
 </head>
 <body>
 
 <header>
     <div class="controls-group">
-        <button id="resetBtn">Reset Vista</button>
-        <span id="coords-label">X: 0 Y: 0</span>
+        <button id="resetBtn">Centra Mappa</button>
+        <span id="coords-label" style="font-family: monospace; color: #666; font-size: 13px;">X:0 Y:0</span>
     </div>
 
     <div id="selectionUI">
-        <span style="color: lime; font-size: 12px; font-weight: bold; margin-right: 5px;">AREA:</span>
         <div class="input-item">X <input type="number" id="ux"></div>
         <div class="input-item">Y <input type="number" id="uy"></div>
         <div class="input-item">W <input type="number" id="uw"></div>
         <div class="input-item">H <input type="number" id="uh"></div>
+        <button id="clearSelBtn" class="btn-red">Reset Selezione</button>
     </div>
 </header>
 
@@ -92,7 +72,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 
 <script>
-/* ================= CONFIG ================= */
 firebase.initializeApp({ apiKey:"AIzaSyDFPiQn3Uq7_OA0e7UxNoeze8z_EfndwsU", authDomain:"pixel-wall-ff621.firebaseapp.com", projectId:"pixel-wall-ff621" });
 const db = firebase.firestore();
 const W = 1280, H = 720;
@@ -100,7 +79,8 @@ const c = document.getElementById("c"), ctx = c.getContext("2d");
 const selUI = document.getElementById("selectionUI");
 
 let scale = 1, ox = 0, oy = 0, blocks = [], cache = {};
-let preview = { x: 0, y: 0, w: 1, h: 1, active: false };
+let preview = { x: 0, y: 0, w: 0, h: 0, active: false };
+let isSelecting = false; // Per estendere l'area trascinando
 
 function resize() {
     const container = document.getElementById("canvas-container");
@@ -116,101 +96,119 @@ db.collection("blocks").onSnapshot(s => { blocks = s.docs.map(d => d.data()); })
 function draw() {
     ctx.clearRect(0, 0, c.width, c.height);
     ctx.save();
-    // Rounding per nitidezza griglia
     ctx.translate(Math.round(ox), Math.round(oy));
     ctx.scale(scale, scale);
     
-    // Background
     ctx.fillStyle = "#111"; ctx.fillRect(0, 0, W, H);
 
-    // Griglia Dinamica
     if (scale > 8) {
         ctx.beginPath();
-        ctx.strokeStyle = "rgba(255, 255, 255, 0.12)";
-        ctx.lineWidth = 1 / scale;
-        for(let x=0; x<=W; x++) { ctx.moveTo(x, 0); ctx.lineTo(x, H); }
-        for(let y=0; y<=H; y++) { ctx.moveTo(0, y); ctx.lineTo(W, y); }
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.1)"; ctx.lineWidth = 1/scale;
+        for(let x=0; x<=W; x++) { ctx.moveTo(x,0); ctx.lineTo(x,H); }
+        for(let y=0; y<=H; y++) { ctx.moveTo(0,y); ctx.lineTo(W,y); }
         ctx.stroke();
     }
 
-    // Disegno Blocchi
     for(let b of blocks) {
         if(!cache[b.img]) { cache[b.img] = new Image(); cache[b.img].src = b.img; }
         if(cache[b.img].complete) ctx.drawImage(cache[b.img], b.x, b.y, b.w, b.h);
     }
 
-    // Anteprima Selezione Migliorata
     if(preview.active) {
         ctx.fillStyle = "rgba(0, 255, 0, 0.25)";
-        ctx.strokeStyle = "lime";
-        ctx.lineWidth = 2 / scale;
+        ctx.strokeStyle = "lime"; ctx.lineWidth = 2/scale;
         ctx.fillRect(preview.x, preview.y, preview.w, preview.h);
         ctx.strokeRect(preview.x, preview.y, preview.w, preview.h);
     }
     ctx.restore();
 }
-
 function loop() { draw(); requestAnimationFrame(loop); }
 loop();
 
-/* ================= LOGICA SELEZIONE E PAN ================= */
-let isDragging = false, startX, startY;
+/* ================= LOGICA SELEZIONE ESTENSIBILE ================= */
+let startPoint = { x: 0, y: 0 };
+let isPanning = false, lastMouse = { x: 0, y: 0 };
 
 c.addEventListener("pointerdown", e => {
-    isDragging = false;
-    startX = e.clientX; startY = e.clientY;
+    const r = c.getBoundingClientRect();
+    const worldPos = {
+        x: Math.floor((e.clientX - r.left - ox) / scale),
+        y: Math.floor((e.clientY - r.top - oy) / scale)
+    };
+
+    // Se clicco dentro il muro, inizio selezione. Se fuori o con tasto destro, faccio Pan.
+    if (worldPos.x >= 0 && worldPos.x < W && worldPos.y >= 0 && worldPos.y < H) {
+        isSelecting = true;
+        startPoint = worldPos;
+        updatePreview(worldPos.x, worldPos.y, 1, 1);
+    } else {
+        isPanning = true;
+    }
+    lastMouse = { x: e.clientX, y: e.clientY };
 });
 
 window.addEventListener("pointermove", e => {
-    if (e.buttons !== 1) return;
-    const dx = e.clientX - startX;
-    const dy = e.clientY - startY;
-    if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
-        isDragging = true;
-        ox += dx; oy += dy;
-        startX = e.clientX; startY = e.clientY;
-    }
-    
-    // Mostra coordinate nel banner durante il movimento
     const r = c.getBoundingClientRect();
-    const curX = Math.floor((e.clientX - r.left - ox) / scale);
-    const curY = Math.floor((e.clientY - r.top - oy) / scale);
-    document.getElementById("coords-label").innerText = `X: ${curX} Y: ${curY}`;
-});
+    const curWorld = {
+        x: Math.floor((e.clientX - r.left - ox) / scale),
+        y: Math.floor((e.clientY - r.top - oy) / scale)
+    };
+    
+    document.getElementById("coords-label").innerText = `X: ${curWorld.x} Y: ${curWorld.y}`;
 
-c.addEventListener("pointerup", e => {
-    if (!isDragging) {
-        const r = c.getBoundingClientRect();
-        const newX = Math.floor((e.clientX - r.left - ox) / scale);
-        const newY = Math.floor((e.clientY - r.top - oy) / scale);
-
-        // Perfezionamento Selezione: Reset ad ogni nuovo click
-        preview.active = true;
-        preview.x = newX;
-        preview.y = newY;
-        preview.w = 1; 
-        preview.h = 1;
-
-        selUI.classList.add("active");
+    if (isSelecting) {
+        // Calcolo rettangolo trascinato
+        let x1 = Math.max(0, Math.min(startPoint.x, curWorld.x));
+        let y1 = Math.max(0, Math.min(startPoint.y, curWorld.y));
+        let x2 = Math.min(W, Math.max(startPoint.x, curWorld.x) + 1);
+        let y2 = Math.min(H, Math.max(startPoint.y, curWorld.y) + 1);
         
-        document.getElementById("ux").value = preview.x;
-        document.getElementById("uy").value = preview.y;
-        document.getElementById("uw").value = preview.w;
-        document.getElementById("uh").value = preview.h;
+        updatePreview(x1, y1, x2 - x1, y2 - y1);
+    } else if (isPanning) {
+        ox += e.clientX - lastMouse.x;
+        oy += e.clientY - lastMouse.y;
+        lastMouse = { x: e.clientX, y: e.clientY };
     }
-    isDragging = false;
 });
 
-// Sync Input -> Preview
+window.addEventListener("pointerup", () => {
+    isSelecting = false;
+    isPanning = false;
+});
+
+function updatePreview(x, y, w, h) {
+    // Vincoli ferrei entro la griglia
+    preview.x = Math.max(0, Math.min(x, W - 1));
+    preview.y = Math.max(0, Math.min(y, H - 1));
+    preview.w = Math.min(w, W - preview.x);
+    preview.h = Math.min(h, H - preview.y);
+    preview.active = true;
+    
+    selUI.style.visibility = "visible";
+    document.getElementById("ux").value = preview.x;
+    document.getElementById("uy").value = preview.y;
+    document.getElementById("uw").value = preview.w;
+    document.getElementById("uh").value = preview.h;
+}
+
+// Reset Selezione
+document.getElementById("clearSelBtn").onclick = () => {
+    preview.active = false;
+    selUI.style.visibility = "hidden";
+};
+
+// Sync Manuale
 ["ux", "uy", "uw", "uh"].forEach(id => {
-    document.getElementById(id).addEventListener("input", e => {
-        preview[id.slice(1)] = parseInt(e.target.value) || 0;
-        preview.active = true;
-        selUI.classList.add("active");
+    document.getElementById(id).addEventListener("input", () => {
+        const nx = parseInt(document.getElementById("ux").value) || 0;
+        const ny = parseInt(document.getElementById("uy").value) || 0;
+        const nw = parseInt(document.getElementById("uw").value) || 1;
+        const nh = parseInt(document.getElementById("uh").value) || 1;
+        updatePreview(nx, ny, nw, nh);
     });
 });
 
-/* ================= ZOOM E RESET ================= */
+/* ================= ZOOM ================= */
 c.addEventListener("wheel", e => {
     e.preventDefault();
     const s = e.deltaY < 0 ? 1.1 : 0.9;
@@ -218,17 +216,9 @@ c.addEventListener("wheel", e => {
 }, {passive: false});
 
 document.getElementById("resetBtn").onclick = () => {
-    scale = 1;
-    ox = (c.width - W) / 2;
-    oy = (c.height - H) / 2;
-    // Opzionale: preview.active = false; selUI.classList.remove("active");
+    scale = 1; ox = (c.width - W)/2; oy = (c.height - H)/2;
 };
-
-window.onload = () => {
-    ox = (c.width - W) / 2;
-    oy = (c.height - H) / 2;
-};
+window.onload = () => { ox = (c.width - W)/2; oy = (c.height - H)/2; };
 </script>
-
 </body>
 </html>
