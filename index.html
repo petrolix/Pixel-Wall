@@ -34,6 +34,7 @@
         }
         .mode-btn.active { background: #333; color: lime; }
 
+        /* UI SELEZIONE */
         #selectionUI { 
             display: none; align-items: center; gap: 6px; 
             background: #252525; padding: 4px 10px; border-radius: 8px; border: 1px solid lime;
@@ -41,6 +42,7 @@
         .sel-field { display: flex; align-items: center; gap: 3px; font-size: 10px; color: #aaa; }
         input { width: 42px; background: #000; border: 1px solid #555; color: lime; padding: 2px; border-radius: 4px; text-align: center; font-size: 11px; }
         
+        /* Statistiche */
         #stats-label { color: #555; font-weight: bold; margin-right: 5px; }
         .stat-item b { color: lime; }
         #sel-count-box { color: yellow; font-weight: bold; margin-left: 10px; display: none; }
@@ -89,7 +91,24 @@
     </div>
 </header>
 
-<div id="canvas-container"><canvas id="c" class="mode-pan"></canvas></div>
+<div id="canvas-container">
+    <canvas id="c" class="mode-pan"></canvas>
+</div>
+
+<div id="url-tooltip" style="
+    position: fixed; 
+    display: none; 
+    background: rgba(0, 0, 0, 0.85); 
+    color: #00ffcc; 
+    padding: 6px 12px; 
+    border-radius: 6px; 
+    border: 1px solid #00ffcc; 
+    font-family: monospace; 
+    font-size: 11px; 
+    pointer-events: none; 
+    z-index: 99999;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+"></div>
 
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
@@ -162,7 +181,7 @@ document.getElementById("zoomIn").onclick = () => applyZoom(1.2, c.width/2, c.he
 document.getElementById("zoomOut").onclick = () => applyZoom(0.8, c.width/2, c.height/2);
 
 let evCache = [], prevDiff = -1, isMouseDown = false, startPos = null, lastM = {x:0, y:0};
-let totalMovement = 0; // Traccia lo spostamento per evitare falsi click sui link
+let totalMovement = 0; 
 
 c.onpointerdown = e => {
     evCache.push(e); isMouseDown = true; lastM = { x: e.clientX, y: e.clientY };
@@ -186,11 +205,32 @@ c.onpointermove = e => {
         if (prevDiff > 0) applyZoom(curDiff/prevDiff, midX, midY);
         prevDiff = curDiff; return;
     }
+    
+    const r = c.getBoundingClientRect();
+    const cw = { x: Math.floor((e.clientX-r.left-ox)/scale), y: Math.floor((e.clientY-r.top-oy)/scale) };
+    document.getElementById("coords-label").innerText = `X:${cw.x} Y:${cw.y}`;
+
+    // LOGICA DI CONTROLLO DEL TOOLTIP
+    const tooltip = document.getElementById("url-tooltip");
+    if (currentMode === 'pan' && !isMouseDown) {
+        const hoverTarget = blocks.find(b => cw.x >= b.x && cw.x < b.x + b.w && cw.y >= b.y && cw.y < b.y + b.h);
+        if (hoverTarget && hoverTarget.link) {
+            c.className = ""; // Rimuove temporaneamente grab
+            c.style.cursor = "pointer"; // Mostra la manina dei collegamenti
+            tooltip.style.display = "block";
+            tooltip.innerText = `🔗 Apri: ${hoverTarget.link}`;
+            tooltip.style.left = (e.clientX + 15) + "px";
+            tooltip.style.top = (e.clientY + 15) + "px";
+        } else {
+            c.className = "mode-pan"; // Ripristina grab
+            c.style.cursor = "";
+            tooltip.style.display = "none";
+        }
+    } else {
+        tooltip.style.display = "none";
+    }
+
     if (isMouseDown && evCache.length === 1) {
-        const r = c.getBoundingClientRect();
-        const cw = { x: Math.floor((e.clientX-r.left-ox)/scale), y: Math.floor((e.clientY-r.top-oy)/scale) };
-        
-        // Accumula la distanza di movimento pixel dello schermo
         totalMovement += Math.hypot(e.clientX - lastM.x, e.clientY - lastM.y);
 
         if (currentMode === 'select' && startPos) {
@@ -201,12 +241,10 @@ c.onpointermove = e => {
             ox += e.clientX - lastM.x; oy += e.clientY - lastM.y;
             lastM = { x: e.clientX, y: e.clientY };
         }
-        document.getElementById("coords-label").innerText = `X:${cw.x} Y:${cw.y}`;
     }
 };
 
 c.onpointerup = c.onpointercancel = e => {
-    // GESTIONE DEI CLICK SUI LINK (Eseguito solo se il mouse non si è mosso di molto e siamo in modalità Pan)
     if (isMouseDown && evCache.length === 1 && totalMovement < 5 && currentMode === 'pan') {
         const r = c.getBoundingClientRect();
         const clickX = (e.clientX - r.left - ox) / scale;
@@ -215,7 +253,6 @@ c.onpointerup = c.onpointercancel = e => {
         const target = blocks.find(b => clickX >= b.x && clickX < b.x + b.w && clickY >= b.y && clickY < b.y + b.h);
         if (target && target.link) {
             let url = target.link.trim();
-            // Forza protocollo di sicurezza se assente
             if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
             window.open(url, '_blank');
         }
