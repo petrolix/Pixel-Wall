@@ -3,36 +3,82 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Pixel Wall Live - Preview Mode</title>
+    <title>Pixel Wall - Live View</title>
     <style>
         *{margin:0;padding:0;box-sizing:border-box;}
-        body{ overflow:hidden; background:#0f0f0f; font-family:Arial; }
-        
+        body{ 
+            overflow:hidden; 
+            background:#0f0f0f; 
+            font-family:Arial, sans-serif; 
+            position: fixed; 
+            width: 100%; 
+            height: 100%; 
+        }
+
+        /* Toolbar e Pannelli */
         #toolbar{ 
-            position:fixed; top:10px; left:10px; z-index:9999; 
-            display:flex; flex-direction:column; gap:10px;
+            position:fixed; 
+            top:10px; 
+            left:10px; 
+            z-index:9999; 
+            display:flex; 
+            flex-direction:column; 
+            gap:10px; 
+            pointer-events: none; /* Evita interferenze col canvas se non si tocca un bottone */
         }
 
-        .ui-box {
-            background:rgba(27,27,27,0.9); color:#fff; border:1px solid #444; 
-            padding:15px; border-radius:12px; backdrop-filter: blur(5px);
+        .ui-box { 
+            background:rgba(20,20,20,0.95); 
+            color:#fff; 
+            border:1px solid #444; 
+            padding:12px; 
+            border-radius:10px; 
+            pointer-events: auto; 
+            backdrop-filter: blur(5px);
         }
 
-        #previewPanel { display: none; flex-direction: column; gap:8px; width: 220px; }
-        
-        .input-group { display: flex; justify-content: space-between; align-items: center; gap: 5px; }
+        #previewPanel { 
+            display: none; 
+            flex-direction: column; 
+            gap:8px; 
+            width: 200px; 
+            border-left: 4px solid lime; 
+        }
+
+        .input-group { 
+            display: flex; 
+            align-items: center; 
+            justify-content: space-between; 
+            font-size: 12px; 
+        }
+
         input { 
-            width: 60px; background: #111; border: 1px solid #555; 
-            color: lime; padding: 4px; border-radius: 4px; text-align: center;
+            width: 60px; 
+            background: #000; 
+            border: 1px solid #555; 
+            color: lime; 
+            padding: 4px; 
+            border-radius: 4px; 
+            text-align: center;
         }
 
         button{ 
-            background:#333; color:#fff; border:1px solid #555; 
-            padding:10px; border-radius:8px; cursor:pointer; font-weight: bold;
+            background:#333; 
+            color:#fff; 
+            border:1px solid #555; 
+            padding:8px; 
+            border-radius:6px; 
+            cursor:pointer; 
+            font-size: 12px;
+            transition: background 0.2s;
         }
-        button:hover { background: #444; }
+        button:hover{ background: #444; }
 
-        canvas{ display:block; touch-action:none; image-rendering:pixelated; cursor: crosshair; }
+        canvas{ 
+            display:block; 
+            touch-action:none; 
+            image-rendering:pixelated; /* Mantiene i pixel definiti */
+        }
     </style>
 </head>
 <body>
@@ -40,14 +86,15 @@
 <div id="toolbar">
     <div class="ui-box">
         <button id="resetBtn">Reset Vista</button>
-        <p style="font-size: 10px; margin-top: 8px; color: #888;">Clicca sul muro per misurare</p>
     </div>
 
     <div id="previewPanel" class="ui-box">
-        <h4 style="color: lime; font-size: 14px; margin-bottom: 5px;">Anteprima Spazio</h4>
-        <div class="input-group">X: <input type="number" id="ux"> Y: <input type="number" id="uy"></div>
-        <div class="input-group">W: <input type="number" id="uw"> H: <input type="number" id="uh"></div>
-        <p style="font-size: 11px; color: #aaa; margin-top: 5px;">Regola i valori per vedere l'area</p>
+        <h4 style="color: lime; font-size: 13px; margin-bottom: 5px;">Anteprima Area</h4>
+        <div class="input-group">Posizione X: <input type="number" id="ux"></div>
+        <div class="input-group">Posizione Y: <input type="number" id="uy"></div>
+        <div class="input-group">Larghezza W: <input type="number" id="uw"></div>
+        <div class="input-group">Altezza H: <input type="number" id="uh"></div>
+        <p style="font-size: 10px; color: #888; margin: 5px 0;">Modifica i valori per testare lo spazio</p>
         <button onclick="document.getElementById('previewPanel').style.display='none'">Chiudi</button>
     </div>
 </div>
@@ -58,48 +105,82 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 
 <script>
-firebase.initializeApp({ apiKey:"AIzaSyDFPiQn3Uq7_OA0e7UxNoeze8z_EfndwsU", authDomain:"pixel-wall-ff621.firebaseapp.com", projectId:"pixel-wall-ff621" });
+/* ================= CONFIGURAZIONE ================= */
+firebase.initializeApp({ 
+    apiKey:"AIzaSyDFPiQn3Uq7_OA0e7UxNoeze8z_EfndwsU", 
+    authDomain:"pixel-wall-ff621.firebaseapp.com", 
+    projectId:"pixel-wall-ff621" 
+});
 const db = firebase.firestore();
-const W=1280, H=720;
+
+const W = 1280, H = 720; // Dimensione fissa del "mondo"
 const c = document.getElementById("c");
 const ctx = c.getContext("2d");
-let scale = 1, ox = 0, oy = 0, blocks = [];
-const cache = {};
 
-// Stato Anteprima
+let scale = 1, ox = 0, oy = 0;
+let blocks = [];
+let cache = {};
 let preview = { x: 0, y: 0, w: 50, h: 50, active: false };
 
-function resize() { c.width = innerWidth; c.height = innerHeight; }
+/* ================= INIZIALIZZAZIONE ================= */
+function resize() {
+    c.width = window.innerWidth;
+    c.height = window.innerHeight;
+}
+window.addEventListener("resize", resize);
 resize();
 
+// Ascolto in tempo reale della collezione "blocks"
 db.collection("blocks").onSnapshot(snapshot => {
     blocks = snapshot.docs.map(doc => doc.data());
 });
 
+/* ================= DISEGNO (RENDERING) ================= */
 function draw() {
     ctx.clearRect(0, 0, c.width, c.height);
     ctx.save();
     ctx.translate(ox, oy);
     ctx.scale(scale, scale);
     
-    // Sfondo e Griglia
-    ctx.fillStyle = "#151515"; ctx.fillRect(0, 0, W, H);
-    ctx.strokeStyle = "#222"; ctx.lineWidth = 1/scale;
-    for(let x=0; x<=W; x+=10) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
-    for(let y=0; y<=H; y+=10) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(y,W); ctx.stroke(); } // Errore corretto qui (era LineTo(W,y))
-    for(let y=0; y<=H; y+=10) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+    // 1. Sfondo del mondo
+    ctx.fillStyle = "#151515"; 
+    ctx.fillRect(0, 0, W, H);
 
-    // Disegno Blocchi Esistenti
-    for(let b of blocks) {
-        if(!cache[b.img]) { let img = new Image(); img.src = b.img; cache[b.img] = img; }
-        if(cache[b.img].complete) ctx.drawImage(cache[b.img], b.x, b.y, b.w, b.h);
+    // 2. Griglia Dinamica (Ottimizzata per performance)
+    if (scale > 5) {
+        // Griglia 1:1 (mostrata solo con molto zoom)
+        ctx.strokeStyle = "#222"; 
+        ctx.lineWidth = 0.5 / scale;
+        ctx.beginPath();
+        for(let x=0; x<=W; x+=1) { ctx.moveTo(x, 0); ctx.lineTo(x, H); }
+        for(let y=0; y<=H; y+=1) { ctx.moveTo(0, y); ctx.lineTo(W, y); }
+        ctx.stroke();
+    } else {
+        // Griglia di orientamento (ogni 50 pixel)
+        ctx.strokeStyle = "#1a1a1a";
+        ctx.lineWidth = 1 / scale;
+        ctx.beginPath();
+        for(let x=0; x<=W; x+=50) { ctx.moveTo(x, 0); ctx.lineTo(x, H); }
+        for(let y=0; y<=H; y+=50) { ctx.moveTo(0, y); ctx.lineTo(W, y); }
+        ctx.stroke();
     }
 
-    // DISEGNO ANTEPRIMA UTENTE
+    // 3. Disegno Blocchi caricati
+    for(let b of blocks) {
+        if(!cache[b.img]) { 
+            cache[b.img] = new Image(); 
+            cache[b.img].src = b.img; 
+        }
+        if(cache[b.img].complete) {
+            ctx.drawImage(cache[b.img], b.x, b.y, b.w, b.h);
+        }
+    }
+
+    // 4. Disegno Anteprima Utente
     if(preview.active) {
-        ctx.fillStyle = "rgba(0, 255, 0, 0.3)";
-        ctx.strokeStyle = "lime";
-        ctx.lineWidth = 2/scale;
+        ctx.fillStyle = "rgba(0, 255, 0, 0.2)";
+        ctx.strokeStyle = "lime"; 
+        ctx.lineWidth = 2 / scale;
         ctx.fillRect(preview.x, preview.y, preview.w, preview.h);
         ctx.strokeRect(preview.x, preview.y, preview.w, preview.h);
     }
@@ -107,54 +188,86 @@ function draw() {
     ctx.restore();
 }
 
-function loop() { draw(); requestAnimationFrame(loop); }
+// Loop fluido a 60fps
+function loop() {
+    draw();
+    requestAnimationFrame(loop);
+}
 loop();
 
-function getPos(e) {
-    const r = c.getBoundingClientRect();
-    const cx = e.touches ? e.touches[0].clientX : e.clientX;
-    const cy = e.touches ? e.touches[0].clientY : e.clientY;
-    return { x: Math.floor((cx - r.left - ox) / scale), y: Math.floor((cy - r.top - oy) / scale) };
-}
+/* ================= CONTROLLI (INPUT) ================= */
+let isDragging = false, startX, startY;
 
-// Eventi
-let dragging = false, lx = 0, ly = 0;
-
-c.addEventListener("mousedown", e => { dragging = false; lx = e.clientX; ly = e.clientY; });
-c.addEventListener("mousemove", e => {
-    if(Math.abs(e.clientX - lx) > 5 || Math.abs(e.clientY - ly) > 5) dragging = true;
-    if(dragging) { ox += e.clientX - lx; oy += e.clientY - ly; lx = e.clientX; ly = e.clientY; }
+// Sistema PointerEvents per gestire Mouse e Touch simultaneamente
+c.addEventListener("pointerdown", e => {
+    isDragging = false;
+    startX = e.clientX; 
+    startY = e.clientY;
 });
 
-c.addEventListener("click", e => {
-    if(dragging) return; // Se stava trascinando la mappa, non selezionare
-    const p = getPos(e);
+window.addEventListener("pointermove", e => {
+    if (e.buttons !== 1 && e.type !== "touchmove") return;
     
-    // Attiva anteprima nel punto cliccato
-    preview.active = true;
-    preview.x = p.x;
-    preview.y = p.y;
-    
-    // Aggiorna Input
-    document.getElementById("ux").value = preview.x;
-    document.getElementById("uy").value = preview.y;
-    document.getElementById("uw").value = preview.w;
-    document.getElementById("uh").value = preview.h;
-    
-    document.getElementById("previewPanel").style.display = "flex";
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+
+    // Se il movimento è superiore a 5px, è un trascinamento (Pan)
+    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+        isDragging = true;
+        ox += dx; 
+        oy += dy;
+        startX = e.clientX; 
+        startY = e.clientY;
+    }
 });
 
-// Listener per aggiornare l'anteprima dai box di testo
+c.addEventListener("pointerup", e => {
+    // Se non stavo trascinando, allora è un click di selezione
+    if (!isDragging) {
+        const r = c.getBoundingClientRect();
+        // Calcolo coordinata pixel "calamitata"
+        preview.x = Math.floor((e.clientX - r.left - ox) / scale);
+        preview.y = Math.floor((e.clientY - r.top - oy) / scale);
+        preview.active = true;
+        
+        // Aggiorna i valori nel pannello UI
+        document.getElementById("ux").value = preview.x;
+        document.getElementById("uy").value = preview.y;
+        document.getElementById("uw").value = preview.w;
+        document.getElementById("uh").value = preview.h;
+        document.getElementById("previewPanel").style.display = "flex";
+    }
+    isDragging = false;
+});
+
+// Listener per i box di testo dell'anteprima
 ["ux", "uy", "uw", "uh"].forEach(id => {
-    document.getElementById(id).addEventListener("input", (e) => {
-        preview[id.replace("u", "")] = parseInt(e.target.value) || 0;
+    document.getElementById(id).addEventListener("input", e => {
+        const val = parseInt(e.target.value) || 0;
+        preview[id.slice(1)] = val;
     });
 });
 
-c.addEventListener("wheel", e => { e.preventDefault(); scale *= e.deltaY < 0 ? 1.1 : 0.9; scale = Math.max(0.1, Math.min(50, scale)); }, {passive: false});
+// Zoom con rotella del mouse
+c.addEventListener("wheel", e => {
+    e.preventDefault();
+    const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
+    scale = Math.max(0.1, Math.min(50, scale * zoomFactor));
+}, {passive: false});
 
-document.getElementById("resetBtn").onclick = () => { scale = 1; ox = (c.width - W)/2; oy = (c.height - H)/2; };
-window.addEventListener("resize", resize);
+// Pulsante Reset
+document.getElementById("resetBtn").onclick = () => {
+    scale = 1;
+    ox = (c.width - W) / 2;
+    oy = (c.height - H) / 2;
+};
+
+// Allineamento iniziale al centro
+window.onload = () => {
+    ox = (c.width - W) / 2;
+    oy = (c.height - H) / 2;
+};
 </script>
+
 </body>
 </html>
