@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Pixel Wall - ADMIN LOGIN</title>
+    <title>Admin Pixel Wall - Pro Control</title>
     <style>
         *{margin:0;padding:0;box-sizing:border-box; touch-action: none; }
         body { 
@@ -12,53 +12,32 @@
             display: flex; flex-direction: column; height: 100vh;
             position: fixed; width: 100%; 
         }
-
         header {
             background: #1a1a1a; color: white; padding: 8px 15px;
             display: flex; flex-direction: column; gap: 8px;
             border-bottom: 2px solid #d4a017; z-index: 10000;
         }
-
-        .top-row { display: flex; align-items: center; justify-content: space-between; width: 100%; gap: 10px; }
-        .stats-row { 
-            display: flex; align-items: center; justify-content: space-between; width: 100%;
-            font-family: monospace; font-size: 11px; color: #888; 
-            background: #000; padding: 5px 12px; border-radius: 6px; border: 1px solid #222;
-        }
-        
+        .top-row, .stats-row { display: flex; align-items: center; justify-content: space-between; width: 100%; }
         .controls-group { display: flex; align-items: center; gap: 10px; }
         
-        /* Pannello Admin inizialmente nascosto */
         #adminControls { display: none; align-items: center; gap: 10px; }
-
-        /* Pulsante Login */
-        #loginBtn { 
-            background: #d4a017; color: black; font-weight: bold; 
-            border: none; padding: 5px 12px; border-radius: 6px; cursor: pointer;
-        }
-
-        /* UI SELEZIONE & UPLOAD */
-        #selectionUI { 
-            display: none; align-items: center; gap: 8px; 
-            background: #252525; padding: 4px 10px; border-radius: 8px; border: 1px solid #d4a017;
-        }
-        .sel-field { display: flex; align-items: center; gap: 3px; font-size: 10px; color: #aaa; }
-        input { 
-            background: #000; border: 1px solid #555; color: #d4a017; 
-            padding: 3px; border-radius: 4px; text-align: center; font-size: 11px; 
-        }
-        .coord-input { width: 45px; }
-        #fileInput { font-size: 10px; color: #aaa; width: 150px; border: none; }
-        
-        #saveBtn { background: #d4a017; color: #000; font-weight: bold; border: none; padding: 4px 12px; border-radius: 4px; }
-        
-        #canvas-container { flex-grow: 1; position: relative; overflow: hidden; background: #000; }
-        canvas { display: block; image-rendering: pixelated; }
-        button { background:#333; color:white; border:1px solid #444; border-radius:4px; cursor:pointer; padding: 4px 8px; font-size: 11px; }
+        #selectionUI { display: none; align-items: center; gap: 8px; background: #252525; padding: 4px 10px; border-radius: 8px; border: 1px solid #d4a017; }
         
         .mode-toggle { display: flex; background: #000; padding: 2px; border-radius: 8px; border: 1px solid #444; }
-        .mode-btn { background: transparent; color: #666; border: none; padding: 6px 10px; border-radius: 6px; font-size: 10px; font-weight: bold; }
+        .mode-btn { background: transparent; color: #666; border: none; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 10px; font-weight: bold; }
         .mode-btn.active { background: #333; color: #d4a017; }
+
+        .stats-row { font-family: monospace; font-size: 11px; color: #888; background: #000; padding: 5px 12px; border-radius: 6px; border: 1px solid #222; }
+        input { background: #000; border: 1px solid #555; color: #d4a017; padding: 3px; border-radius: 4px; text-align: center; font-size: 11px; width: 45px; }
+        #fileInput { font-size: 10px; color: #aaa; width: 140px; border: none; }
+        
+        button { background:#333; color:white; border:1px solid #444; border-radius:4px; cursor:pointer; padding: 4px 8px; font-size: 11px; }
+        #loginBtn { background: #d4a017; color: black; font-weight: bold; border: none; }
+        #saveBtn { background: #d4a017; color: black; font-weight: bold; border: none; }
+        #removeBtn { background: #600; color: white; border: 1px solid red; display: none; }
+
+        #canvas-container { flex-grow: 1; position: relative; overflow: hidden; background: #000; }
+        canvas { display: block; image-rendering: pixelated; }
     </style>
 </head>
 <body>
@@ -66,44 +45,39 @@
 <header>
     <div class="top-row">
         <div class="controls-group">
+            <button id="loginBtn">LOGIN ADMIN</button>
             <div id="adminControls">
                 <div class="mode-toggle">
                     <button id="modePan" class="mode-btn active">NAVIGA</button>
                     <button id="modeSelect" class="mode-btn">SELEZIONA</button>
                 </div>
-                <button id="resetBtn">RESET</button>
+                <button id="removeBtn">ELIMINA SELEZIONATO</button>
             </div>
-            
-            <button id="loginBtn">LOGIN ADMIN</button>
-
             <div style="display:flex; align-items:center; gap:5px;">
                 <button id="zoomOut">-</button>
                 <span id="zoom-level" style="color:#d4a017; font-family:monospace; min-width:35px;">100%</span>
                 <button id="zoomIn">+</button>
+                <button id="resetBtn">RESET</button>
             </div>
         </div>
 
         <div id="selectionUI">
-            <div class="sel-field">X <input type="number" id="ux" class="coord-input"></div>
-            <div class="sel-field">Y <input type="number" id="uy" class="coord-input"></div>
-            <div class="sel-field">W <input type="number" id="uw" class="coord-input"></div>
-            <div class="sel-field">H <input type="number" id="uh" class="coord-input"></div>
+            <input type="number" id="ux"> <input type="number" id="uy">
+            <input type="number" id="uw"> <input type="number" id="uh">
             <input type="file" id="fileInput" accept="image/*">
             <button id="saveBtn">PUBBLICA</button>
-            <button id="clearSelBtn" style="color:#f88; border:none; background:none; font-size:16px;">✕</button>
+            <button id="closeSel" style="background:none; border:none; color:#f88; font-size:16px;">✕</button>
         </div>
     </div>
 
     <div class="stats-row">
         <div style="display:flex; align-items:center;">
-            <span style="color:#d4a017; font-weight:bold; margin-right:10px;">PANNELLO:</span>
-            <div style="margin-right:10px;">Disp: <b id="statFree" style="color:#eee">0</b></div>
-            <div>Occ: <b id="statUsed" style="color:#eee">0</b></div>
-            <div id="sel-count-box" style="color:#00ffcc; font-weight:bold; margin-left:15px; display:none;">
-                Area: <span id="statSel">0</span> px
-            </div>
+            <span style="color:#d4a017; font-weight:bold; margin-right:10px;">STATISTICHE PIXEL:</span>
+            <div style="margin-right:10px;">Disp: <b id="statFree">0</b></div>
+            <div style="margin-right:10px;">Occ: <b id="statUsed">0</b></div>
+            <div id="sel-count-box" style="color:#00ffcc; display:none;">Area: <b id="statSel">0</b> px</div>
         </div>
-        <div id="coords-label" style="color:#555;">X:0 Y:0</div>
+        <div id="coords-label">X:0 Y:0</div>
     </div>
 </header>
 
@@ -113,28 +87,14 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 
 <script>
+// CONFIGURAZIONE
 firebase.initializeApp({ apiKey:"AIzaSyDFPiQn3Uq7_OA0e7UxNoeze8z_EfndwsU", authDomain:"pixel-wall-ff621.firebaseapp.com", projectId:"pixel-wall-ff621" });
 const db = firebase.firestore();
-const W = 1280, H = 720, c = document.getElementById("c"), ctx = c.getContext("2d");
-const selUI = document.getElementById("selectionUI"), selBox = document.getElementById("sel-count-box");
+const CLOUD = "dkwijnvsl", PRESET = "pixelwall", W=1280, H=720;
 
-let isAdmin = false;
-let scale = 1, ox = 0, oy = 0, blocks = [], cache = {};
-let preview = { x: 0, y: 0, w: 0, h: 0, active: false };
-let currentMode = 'pan';
-
-// --- GESTIONE LOGIN ---
-document.getElementById("loginBtn").onclick = () => {
-    const pass = prompt("Inserisci password:");
-    if(pass === "admin123") {
-        isAdmin = true;
-        document.getElementById("loginBtn").style.display = "none";
-        document.getElementById("adminControls").style.display = "flex";
-        alert("Accesso Amministratore Attivo");
-    } else {
-        alert("Password errata!");
-    }
-};
+const c = document.getElementById("c"), ctx = c.getContext("2d");
+let scale = 1, ox = 0, oy = 0, blocks = [], cache = {}, isAdmin = false, selectedId = null;
+let preview = { x: 0, y: 0, w: 0, h: 0, active: false }, currentMode = 'pan';
 
 function resize() {
     const r = document.getElementById("canvas-container").getBoundingClientRect();
@@ -143,8 +103,9 @@ function resize() {
 window.addEventListener("resize", resize);
 resize();
 
-db.collection("blocks").onSnapshot(s => { 
-    blocks = s.docs.map(d => d.data()); 
+// Snapshot real-time su collezione 'blocks'
+db.collection("blocks").onSnapshot(s => {
+    blocks = s.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     updateStats();
 });
 
@@ -160,18 +121,22 @@ function draw() {
     ctx.save();
     ctx.translate(Math.round(ox), Math.round(oy));
     ctx.scale(scale, scale);
-    ctx.fillStyle = "#0c0c0c"; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = "#111"; ctx.fillRect(0, 0, W, H);
     
     if (scale > 5) {
-        ctx.beginPath(); ctx.strokeStyle = "rgba(212,160,23,0.15)"; ctx.lineWidth = 1/scale;
+        ctx.beginPath(); ctx.strokeStyle = "rgba(212,160,23,0.1)"; ctx.lineWidth = 1/scale;
         for(let x=0; x<=W; x+=10) { ctx.moveTo(x,0); ctx.lineTo(x,H); }
         for(let y=0; y<=H; y+=10) { ctx.moveTo(0,y); ctx.lineTo(W,y); }
         ctx.stroke();
     }
 
     for(let b of blocks) {
-        if(!cache[b.img]) { cache[b.img] = new Image(); cache[b.img].src = b.img; }
+        if(!cache[b.img]) { let img = new Image(); img.src = b.img; cache[b.img] = img; }
         if(cache[b.img].complete) ctx.drawImage(cache[b.img], b.x, b.y, b.w, b.h);
+        if(b.id === selectedId) {
+            ctx.strokeStyle = "red"; ctx.lineWidth = 3/scale;
+            ctx.strokeRect(b.x, b.y, b.w, b.h);
+        }
     }
 
     if(preview.active && isAdmin) {
@@ -184,43 +149,88 @@ function draw() {
 function loop() { draw(); requestAnimationFrame(loop); }
 loop();
 
-document.getElementById("saveBtn").onclick = () => {
-    if(!isAdmin) return;
-    const file = document.getElementById("fileInput").files[0];
-    if(!file || !preview.active) return alert("Seleziona area e scegli un file!");
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-        await db.collection("blocks").add({ x: preview.x, y: preview.y, w: preview.w, h: preview.h, img: e.target.result });
-        document.getElementById("fileInput").value = "";
-        resetSelection();
-    };
-    reader.readAsDataURL(file);
+// LOGIN
+document.getElementById("loginBtn").onclick = () => {
+    if(prompt("Password:") === "admin123") {
+        isAdmin = true;
+        document.getElementById("loginBtn").style.display = "none";
+        document.getElementById("adminControls").style.display = "flex";
+    }
 };
 
-function applyZoom(s, centerX, centerY) {
-    const newScale = Math.max(0.1, Math.min(60, scale * s));
-    const worldX = (centerX - ox) / scale, worldY = (centerY - oy) / scale;
-    scale = newScale;
-    ox = centerX - worldX * scale; oy = centerY - worldY * scale;
+// PUBBLICAZIONE (Cloudinary + Firestore)
+document.getElementById("saveBtn").onclick = async () => {
+    const file = document.getElementById("fileInput").files[0];
+    if(!file || !preview.active) return alert("Scegli area e file");
+    
+    const btn = document.getElementById("saveBtn");
+    btn.disabled = true; btn.innerText = "...";
+
+    const form = new FormData(); 
+    form.append("file", file); 
+    form.append("upload_preset", PRESET);
+
+    try {
+        const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD}/image/upload`, { method: "POST", body: form });
+        const data = await res.json();
+
+        // Salvataggio su collezione 'blocks'
+        await db.collection("blocks").add({
+            img: data.secure_url, 
+            delete_token: data.delete_token,
+            x: preview.x, y: preview.y, w: preview.w, h: preview.h
+        });
+        resetSelection();
+    } catch(e) { alert("Errore upload Cloudinary"); }
+    btn.disabled = false; btn.innerText = "PUBBLICA";
+};
+
+// ELIMINAZIONE (Firestore + Cloudinary)
+document.getElementById("removeBtn").onclick = async () => {
+    if(!selectedId || !confirm("Eliminare definitivamente?")) return;
+    const bRem = blocks.find(b => b.id === selectedId);
+    
+    if(bRem && bRem.delete_token) {
+        const f = new FormData(); 
+        f.append("token", bRem.delete_token);
+        // Eliminazione silente da Cloudinary
+        fetch(`https://api.cloudinary.com/v1_1/${CLOUD}/delete_by_token`, { method: "POST", body: f });
+    }
+    
+    await db.collection("blocks").doc(selectedId).delete();
+    selectedId = null;
+    document.getElementById("removeBtn").style.display = "none";
+};
+
+// INPUT & ZOOM
+function applyZoom(s, cx, cy) {
+    const ns = Math.max(0.1, Math.min(60, scale * s));
+    const wx = (cx - ox) / scale, wy = (cy - oy) / scale;
+    scale = ns; ox = cx - wx * scale; oy = cy - wy * scale;
     document.getElementById("zoom-level").innerText = Math.round(scale * 100) + "%";
 }
-
-c.addEventListener("wheel", e => { e.preventDefault(); applyZoom(e.deltaY < 0 ? 1.1 : 0.9, e.clientX, e.clientY); }, {passive: false});
-document.getElementById("zoomIn").onclick = () => applyZoom(1.2, c.width/2, c.height/2);
-document.getElementById("zoomOut").onclick = () => applyZoom(0.8, c.width/2, c.height/2);
 
 let evCache = [], prevDiff = -1, isMouseDown = false, startPos = null, lastM = {x:0, y:0};
 
 c.onpointerdown = e => {
-    evCache.push(e); isMouseDown = true; lastM = { x: e.clientX, y: e.clientY };
-    if (!isAdmin) return;
+    evCache.push(e); isMouseDown = true; lastM = {x:e.clientX, y:e.clientY};
     const r = c.getBoundingClientRect();
     const wp = { x: Math.floor((e.clientX-r.left-ox)/scale), y: Math.floor((e.clientY-r.top-oy)/scale) };
-    if (evCache.length === 1 && currentMode === 'select') {
-        const hit = blocks.some(b => wp.x >= b.x && wp.x < b.x+b.w && wp.y >= b.y && wp.y < b.y+b.h);
-        if (!hit && wp.x >= 0 && wp.x < W && wp.y >= 0 && wp.y < H) {
+
+    if(evCache.length === 1) {
+        selectedId = null;
+        document.getElementById("removeBtn").style.display = "none";
+        for(let i=blocks.length-1; i>=0; i--) {
+            let b = blocks[i];
+            if(wp.x>=b.x && wp.x<b.x+b.w && wp.y>=b.y && wp.y<b.y+b.h) {
+                selectedId = b.id;
+                if(isAdmin) document.getElementById("removeBtn").style.display = "block";
+                break;
+            }
+        }
+        if(!selectedId && isAdmin && currentMode === 'select' && wp.x>=0 && wp.x<W && wp.y>=0 && wp.y<H) {
             startPos = wp; updatePreview(wp.x, wp.y, 1, 1);
-        } else startPos = null;
+        }
     }
 };
 
@@ -228,65 +238,49 @@ c.onpointermove = e => {
     const index = evCache.findIndex(ev => ev.pointerId === e.pointerId);
     if (index !== -1) evCache[index] = e;
     if (evCache.length === 2) {
-        const curDiff = Math.hypot(evCache[0].clientX-evCache[1].clientX, evCache[0].clientY-evCache[1].clientY);
-        const midX = (evCache[0].clientX+evCache[1].clientX)/2, midY = (evCache[0].clientY+evCache[1].clientY)/2;
-        if (prevDiff > 0) applyZoom(curDiff/prevDiff, midX, midY);
-        prevDiff = curDiff; return;
+        const d = Math.hypot(evCache[0].clientX-evCache[1].clientX, evCache[0].clientY-evCache[1].clientY);
+        if (prevDiff > 0) applyZoom(d/prevDiff, (evCache[0].clientX+evCache[1].clientX)/2, (evCache[0].clientY+evCache[1].clientY)/2);
+        prevDiff = d; return;
     }
+    const r = c.getBoundingClientRect();
+    const cw = { x: Math.floor((e.clientX-r.left-ox)/scale), y: Math.floor((e.clientY-r.top-oy)/scale) };
+    document.getElementById("coords-label").innerText = `X:${cw.x} Y:${cw.y}`;
+
     if (isMouseDown && evCache.length === 1) {
-        const r = c.getBoundingClientRect();
-        const cw = { x: Math.floor((e.clientX-r.left-ox)/scale), y: Math.floor((e.clientY-r.top-oy)/scale) };
         if (isAdmin && currentMode === 'select' && startPos) {
             let x1 = Math.max(0, Math.min(startPos.x, cw.x)), y1 = Math.max(0, Math.min(startPos.y, cw.y));
             let x2 = Math.min(W, Math.max(startPos.x, cw.x)+1), y2 = Math.min(H, Math.max(startPos.y, cw.y)+1);
-            if (!checkCollision(x1, y1, x2-x1, y2-y1)) updatePreview(x1, y1, x2-x1, y2-y1);
+            if (!blocks.some(b => x1 < b.x+b.w && x2 > b.x && y1 < b.y+b.h && y2 > b.y)) updatePreview(x1, y1, x2-x1, y2-y1);
         } else {
             ox += e.clientX - lastM.x; oy += e.clientY - lastM.y;
-            lastM = { x: e.clientX, y: e.clientY };
+            lastM = {x:e.clientX, y:e.clientY};
         }
-        document.getElementById("coords-label").innerText = `X:${cw.x} Y:${cw.y}`;
     }
 };
 
 c.onpointerup = c.onpointercancel = e => {
     evCache = evCache.filter(ev => ev.pointerId !== e.pointerId);
-    if (evCache.length < 2) prevDiff = -1;
-    isMouseDown = false;
+    if(evCache.length < 2) prevDiff = -1;
+    isMouseDown = false; startPos = null;
 };
 
 function updatePreview(x, y, w, h) {
-    if(!isAdmin) return;
     preview = { x, y, w, h, active: true };
-    selUI.style.display = "flex";
-    selBox.style.display = "block";
-    document.getElementById("ux").value = x; document.getElementById("uy").value = y;
-    document.getElementById("uw").value = w; document.getElementById("uh").value = h;
+    document.getElementById("selectionUI").style.display = "flex";
+    document.getElementById("sel-count-box").style.display = "block";
+    ux.value = x; uy.value = y; uw.value = w; uh.value = h;
     document.getElementById("statSel").innerText = (w * h).toLocaleString();
 }
 
-["ux", "uy", "uw", "uh"].forEach(id => {
-    document.getElementById(id).addEventListener("input", () => {
-        if(!isAdmin) return;
-        const nx = parseInt(document.getElementById("ux").value) || 0;
-        const ny = parseInt(document.getElementById("uy").value) || 0;
-        const nw = parseInt(document.getElementById("uw").value) || 1;
-        const nh = parseInt(document.getElementById("uh").value) || 1;
-        if (!checkCollision(nx, ny, nw, nh)) updatePreview(nx, ny, nw, nh);
-    });
-});
+function resetSelection() { preview.active = false; document.getElementById("selectionUI").style.display = "none"; document.getElementById("sel-count-box").style.display = "none"; }
+function setMode(m) { currentMode = m; document.getElementById("modePan").classList.toggle("active", m === 'pan'); document.getElementById("modeSelect").classList.toggle("active", m === 'select'); if (m === 'pan') resetSelection(); }
 
-function setMode(m) {
-    currentMode = m;
-    document.getElementById("modePan").classList.toggle("active", m === 'pan');
-    document.getElementById("modeSelect").classList.toggle("active", m === 'select');
-    if (m === 'pan') resetSelection();
-}
-function resetSelection() { preview.active = false; selUI.style.display = "none"; selBox.style.display = "none"; }
 document.getElementById("modePan").onclick = () => setMode('pan');
 document.getElementById("modeSelect").onclick = () => setMode('select');
-document.getElementById("clearSelBtn").onclick = resetSelection;
+document.getElementById("closeSel").onclick = resetSelection;
+document.getElementById("zoomIn").onclick = () => applyZoom(1.2, c.width/2, c.height/2);
+document.getElementById("zoomOut").onclick = () => applyZoom(0.8, c.width/2, c.height/2);
 document.getElementById("resetBtn").onclick = () => { scale = 1; ox = (c.width-W)/2; oy = (c.height-H)/2; applyZoom(1, 0, 0); };
-function checkCollision(x, y, w, h) { return blocks.some(b => x < b.x + b.w && x + w > b.x && y < b.y + b.h && y + h > b.y); }
 window.onload = () => { ox = (c.width-W)/2; oy = (c.height-H)/2; };
 </script>
 </body>
