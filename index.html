@@ -3,110 +3,147 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Pixel Wall - High Precision</title>
+    <title>Pixel Wall - Massive Experience</title>
     <style>
         *{margin:0;padding:0;box-sizing:border-box;}
-        body{ overflow:hidden; background:#0a0a0a; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; position: fixed; width: 100%; height: 100%; }
         
-        #toolbar{ position:fixed; top:15px; left:15px; z-index:9999; display:flex; flex-direction:column; gap:12px; pointer-events: none; }
-        
-        .ui-box { 
-            background:rgba(25,25,25,0.95); color:#fff; border:1px solid #444; 
-            padding:15px; border-radius:12px; pointer-events: auto; 
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5); backdrop-filter: blur(8px);
+        body { 
+            overflow:hidden; 
+            background:#0a0a0a; 
+            font-family: 'Segoe UI', system-ui, sans-serif; 
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
         }
 
-        #previewPanel { display: none; flex-direction: column; gap:10px; width: 220px; border-top: 3px solid lime; }
+        /* Banner Superiore */
+        header {
+            background: #1a1a1a;
+            color: white;
+            padding: 10px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid #333;
+            z-index: 10000;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+        }
+
+        .controls-group { display: flex; align-items: center; gap: 15px; }
+
+        /* Pannello Selezione nel Banner */
+        #selectionUI {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: #252525;
+            padding: 5px 15px;
+            border-radius: 8px;
+            border: 1px solid #444;
+            transition: opacity 0.3s;
+            opacity: 0.5; /* Più opaco se non attivo */
+        }
+        #selectionUI.active { opacity: 1; border-color: lime; }
+
+        .input-item { display: flex; align-items: center; gap: 5px; font-size: 12px; color: #aaa; }
         
-        .input-group { display: flex; align-items: center; justify-content: space-between; font-size: 13px; }
-        input { 
-            width: 65px; background: #000; border: 1px solid #555; color: lime; 
-            padding: 5px; border-radius: 5px; text-align: center; font-family: monospace;
+        input {
+            width: 55px; background: #000; border: 1px solid #555; 
+            color: lime; padding: 4px; border-radius: 4px; 
+            text-align: center; font-family: monospace; font-size: 13px;
         }
 
-        button{ 
-            background:#333; color:#eee; border:1px solid #555; padding:10px; 
-            border-radius:8px; cursor:pointer; font-size: 13px; font-weight: 600;
+        button {
+            background: #333; color: #eee; border: 1px solid #555; 
+            padding: 6px 12px; border-radius: 6px; cursor: pointer; 
+            font-size: 12px; font-weight: bold; transition: 0.2s;
         }
-        button:hover{ background: #444; color: #fff; border-color: #777; }
+        button:hover { background: #444; border-color: lime; color: #fff; }
 
-        canvas{ display:block; touch-action:none; image-rendering: pixelated; }
+        /* Area Canvas */
+        #canvas-container { flex-grow: 1; position: relative; overflow: hidden; }
+        canvas { display: block; image-rendering: pixelated; touch-action: none; }
+        
+        #coords-label { font-size: 12px; color: #666; font-family: monospace; }
     </style>
 </head>
 <body>
 
-<div id="toolbar">
-    <div class="ui-box">
-        <button id="resetBtn">Centra Mappa</button>
+<header>
+    <div class="controls-group">
+        <button id="resetBtn">Reset Vista</button>
+        <span id="coords-label">X: 0 Y: 0</span>
     </div>
 
-    <div id="previewPanel" class="ui-box">
-        <h4 style="color: lime; font-size: 14px; margin-bottom: 5px; letter-spacing: 1px;">COORDINATE PIXEL</h4>
-        <div class="input-group">X: <input type="number" id="ux"> Y: <input type="number" id="uy"></div>
-        <div class="input-group">W: <input type="number" id="uw"> H: <input type="number" id="uh"></div>
-        <p style="font-size: 10px; color: #aaa; line-height: 1.4;">Clicca di nuovo sul muro per cambiare posizione.</p>
-        <button onclick="document.getElementById('previewPanel').style.display='none'">Chiudi</button>
+    <div id="selectionUI">
+        <span style="color: lime; font-size: 12px; font-weight: bold; margin-right: 5px;">AREA:</span>
+        <div class="input-item">X <input type="number" id="ux"></div>
+        <div class="input-item">Y <input type="number" id="uy"></div>
+        <div class="input-item">W <input type="number" id="uw"></div>
+        <div class="input-item">H <input type="number" id="uh"></div>
     </div>
+</header>
+
+<div id="canvas-container">
+    <canvas id="c"></canvas>
 </div>
-
-<canvas id="c"></canvas>
 
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 
 <script>
+/* ================= CONFIG ================= */
 firebase.initializeApp({ apiKey:"AIzaSyDFPiQn3Uq7_OA0e7UxNoeze8z_EfndwsU", authDomain:"pixel-wall-ff621.firebaseapp.com", projectId:"pixel-wall-ff621" });
 const db = firebase.firestore();
-const W = 1280, H = 720, c = document.getElementById("c"), ctx = c.getContext("2d");
+const W = 1280, H = 720;
+const c = document.getElementById("c"), ctx = c.getContext("2d");
+const selUI = document.getElementById("selectionUI");
 
 let scale = 1, ox = 0, oy = 0, blocks = [], cache = {};
-let preview = { x: 0, y: 0, w: 1, h: 1, active: false }; // Default 1x1 per precisione
+let preview = { x: 0, y: 0, w: 1, h: 1, active: false };
 
-function resize() { c.width = window.innerWidth; c.height = window.innerHeight; }
+function resize() {
+    const container = document.getElementById("canvas-container");
+    c.width = container.clientWidth;
+    c.height = container.clientHeight;
+}
 window.addEventListener("resize", resize);
 resize();
 
 db.collection("blocks").onSnapshot(s => { blocks = s.docs.map(d => d.data()); });
 
+/* ================= RENDERING ================= */
 function draw() {
     ctx.clearRect(0, 0, c.width, c.height);
     ctx.save();
-    ctx.translate(Math.round(ox), Math.round(oy)); // Round evita sfocature
+    // Rounding per nitidezza griglia
+    ctx.translate(Math.round(ox), Math.round(oy));
     ctx.scale(scale, scale);
     
     // Background
-    ctx.fillStyle = "#111"; 
-    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = "#111"; ctx.fillRect(0, 0, W, H);
 
-    // GRIGLIA ULTRA-NITIDA (1:1)
+    // Griglia Dinamica
     if (scale > 8) {
         ctx.beginPath();
-        ctx.strokeStyle = "rgba(255, 255, 255, 0.15)"; 
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.12)";
         ctx.lineWidth = 1 / scale;
         for(let x=0; x<=W; x++) { ctx.moveTo(x, 0); ctx.lineTo(x, H); }
         for(let y=0; y<=H; y++) { ctx.moveTo(0, y); ctx.lineTo(W, y); }
         ctx.stroke();
-    } else if (scale > 2) {
-        ctx.beginPath();
-        ctx.strokeStyle = "rgba(255, 255, 255, 0.05)";
-        ctx.lineWidth = 1 / scale;
-        for(let x=0; x<=W; x+=10) { ctx.moveTo(x, 0); ctx.lineTo(x, H); }
-        for(let y=0; y<=H; y+=10) { ctx.moveTo(0, y); ctx.lineTo(W, y); }
-        ctx.stroke();
     }
 
-    // Blocchi
+    // Disegno Blocchi
     for(let b of blocks) {
         if(!cache[b.img]) { cache[b.img] = new Image(); cache[b.img].src = b.img; }
         if(cache[b.img].complete) ctx.drawImage(cache[b.img], b.x, b.y, b.w, b.h);
     }
 
-    // Anteprima Selezione
+    // Anteprima Selezione Migliorata
     if(preview.active) {
-        ctx.fillStyle = "rgba(0, 255, 0, 0.3)";
-        ctx.strokeStyle = "#00ff00"; 
+        ctx.fillStyle = "rgba(0, 255, 0, 0.25)";
+        ctx.strokeStyle = "lime";
         ctx.lineWidth = 2 / scale;
-        // Disegniamo il rettangolo leggermente rientrato per allinearlo ai pixel
         ctx.fillRect(preview.x, preview.y, preview.w, preview.h);
         ctx.strokeRect(preview.x, preview.y, preview.w, preview.h);
     }
@@ -116,6 +153,7 @@ function draw() {
 function loop() { draw(); requestAnimationFrame(loop); }
 loop();
 
+/* ================= LOGICA SELEZIONE E PAN ================= */
 let isDragging = false, startX, startY;
 
 c.addEventListener("pointerdown", e => {
@@ -127,42 +165,52 @@ window.addEventListener("pointermove", e => {
     if (e.buttons !== 1) return;
     const dx = e.clientX - startX;
     const dy = e.clientY - startY;
-    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+    if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
         isDragging = true;
         ox += dx; oy += dy;
         startX = e.clientX; startY = e.clientY;
     }
+    
+    // Mostra coordinate nel banner durante il movimento
+    const r = c.getBoundingClientRect();
+    const curX = Math.floor((e.clientX - r.left - ox) / scale);
+    const curY = Math.floor((e.clientY - r.top - oy) / scale);
+    document.getElementById("coords-label").innerText = `X: ${curX} Y: ${curY}`;
 });
 
 c.addEventListener("pointerup", e => {
     if (!isDragging) {
         const r = c.getBoundingClientRect();
-        // Calcolo posizione precisa del pixel
         const newX = Math.floor((e.clientX - r.left - ox) / scale);
         const newY = Math.floor((e.clientY - r.top - oy) / scale);
 
-        // RESET SELEZIONE: Ad ogni click ricomincia con un 1x1 nel punto scelto
+        // Perfezionamento Selezione: Reset ad ogni nuovo click
         preview.active = true;
         preview.x = newX;
         preview.y = newY;
-        preview.w = 1; // Resetta a 1x1 ad ogni click
+        preview.w = 1; 
         preview.h = 1;
 
+        selUI.classList.add("active");
+        
         document.getElementById("ux").value = preview.x;
         document.getElementById("uy").value = preview.y;
         document.getElementById("uw").value = preview.w;
         document.getElementById("uh").value = preview.h;
-        document.getElementById("previewPanel").style.display = "flex";
     }
     isDragging = false;
 });
 
+// Sync Input -> Preview
 ["ux", "uy", "uw", "uh"].forEach(id => {
     document.getElementById(id).addEventListener("input", e => {
         preview[id.slice(1)] = parseInt(e.target.value) || 0;
+        preview.active = true;
+        selUI.classList.add("active");
     });
 });
 
+/* ================= ZOOM E RESET ================= */
 c.addEventListener("wheel", e => {
     e.preventDefault();
     const s = e.deltaY < 0 ? 1.1 : 0.9;
@@ -170,10 +218,17 @@ c.addEventListener("wheel", e => {
 }, {passive: false});
 
 document.getElementById("resetBtn").onclick = () => {
-    scale = 1; ox = (c.width - W)/2; oy = (c.height - H)/2;
+    scale = 1;
+    ox = (c.width - W) / 2;
+    oy = (c.height - H) / 2;
+    // Opzionale: preview.active = false; selUI.classList.remove("active");
 };
 
-window.onload = () => { ox = (c.width - W)/2; oy = (c.height - H)/2; };
+window.onload = () => {
+    ox = (c.width - W) / 2;
+    oy = (c.height - H) / 2;
+};
 </script>
+
 </body>
 </html>
