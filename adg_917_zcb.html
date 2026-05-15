@@ -3,41 +3,104 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="robots" content="noindex, nofollow">
-    <title>Admin - Massive Pixel Wall</title>
+    <title>Pixel Wall - PANNELLO ADMIN</title>
     <style>
-        *{margin:0;padding:0;box-sizing:border-box;}
-        body{ overflow:hidden; background:#0f0f0f; font-family:Arial; }
-        #toolbar{ position:fixed; top:10px; left:10px; z-index:9999; display:flex; gap:8px; background:#1b1b1b; padding:10px; border-radius:10px; border:1px solid #333; }
-        button, input{ background:#222; color:#fff; border:1px solid #444; padding:8px 12px; border-radius:8px; cursor:pointer; }
-        #coords{ position:fixed; top:10px; right:10px; background:#111; color:#fff; padding:10px; border-radius:8px; border:1px solid #333; font-size:12px; }
-        #manualPanel { position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); background:#1b1b1b; border:1px solid #333; padding:20px; border-radius:10px; display:none; flex-direction:column; gap:10px; z-index:10000; }
-        canvas{ display:block; touch-action:none; image-rendering:pixelated; }
+        *{margin:0;padding:0;box-sizing:border-box; touch-action: none; }
+        body { 
+            overflow:hidden; background:#0a0a0a; 
+            font-family: 'Segoe UI', system-ui, sans-serif; 
+            display: flex; flex-direction: column; height: 100vh;
+            position: fixed; width: 100%; 
+        }
+
+        header {
+            background: #1a1a1a; color: white; padding: 8px 15px;
+            display: flex; flex-direction: column; gap: 8px;
+            border-bottom: 2px solid #d4a017; z-index: 10000;
+        }
+
+        .top-row { display: flex; align-items: center; justify-content: space-between; width: 100%; gap: 10px; }
+        .stats-row { 
+            display: flex; align-items: center; justify-content: space-between; width: 100%;
+            font-family: monospace; font-size: 11px; color: #888; 
+            background: #000; padding: 5px 12px; border-radius: 6px; border: 1px solid #222;
+        }
+        
+        .controls-group { display: flex; align-items: center; gap: 10px; }
+        .mode-toggle { display: flex; background: #000; padding: 2px; border-radius: 8px; border: 1px solid #444; }
+        .mode-btn {
+            background: transparent; color: #666; border: none; padding: 6px 10px;
+            border-radius: 6px; cursor: pointer; font-size: 10px; font-weight: bold;
+        }
+        .mode-btn.active { background: #333; color: #d4a017; }
+
+        /* UI SELEZIONE & SALVATAGGIO */
+        #selectionUI { 
+            display: none; align-items: center; gap: 8px; 
+            background: #252525; padding: 4px 10px; border-radius: 8px; border: 1px solid #d4a017;
+        }
+        .sel-field { display: flex; align-items: center; gap: 3px; font-size: 10px; color: #aaa; }
+        input { 
+            background: #000; border: 1px solid #555; color: #d4a017; 
+            padding: 3px; border-radius: 4px; text-align: center; font-size: 11px; 
+        }
+        .coord-input { width: 45px; }
+        #imgUrl { width: 150px; text-align: left; }
+        
+        /* Statistiche */
+        #stats-label { color: #d4a017; font-weight: bold; margin-right: 5px; }
+        .stat-item b { color: #eee; }
+        #sel-count-box { color: #00ffcc; font-weight: bold; margin-left: 10px; display: none; }
+
+        #canvas-container { flex-grow: 1; position: relative; overflow: hidden; background: #000; }
+        canvas { display: block; image-rendering: pixelated; }
+        
+        button { background:#333; color:white; border:1px solid #444; border-radius:4px; cursor:pointer; padding: 4px 8px; font-size: 11px; }
+        button:hover { background:#444; }
+        #saveBtn { background: #d4a017; color: #000; font-weight: bold; border: none; }
+        #saveBtn:hover { background: #ffbf00; }
     </style>
 </head>
 <body>
 
-<div id="toolbar">
-    <button id="adminBtn">Login Admin</button>
-    <button id="removeBtn" style="display:none; color:red;">Elimina Selezionato</button>
-    <button id="manualBtn" style="display:none; color:lime;">+ Nuovo Blocco</button>
-    <button id="resetBtn">Reset View</button>
-</div>
+<header>
+    <div class="top-row">
+        <div class="controls-group">
+            <div class="mode-toggle">
+                <button id="modePan" class="mode-btn active">NAVIGA</button>
+                <button id="modeSelect" class="mode-btn">SELEZIONA</button>
+            </div>
+            <div style="display:flex; align-items:center; gap:5px;">
+                <button id="zoomOut">-</button>
+                <span id="zoom-level" style="color:#d4a017; font-family:monospace; min-width:35px;">100%</span>
+                <button id="zoomIn">+</button>
+            </div>
+            <button id="resetBtn">RESET</button>
+        </div>
 
-<div id="coords">X:0 Y:0</div>
+        <div id="selectionUI">
+            <div class="sel-field">X <input type="number" id="ux" class="coord-input"></div>
+            <div class="sel-field">Y <input type="number" id="uy" class="coord-input"></div>
+            <div class="sel-field">W <input type="number" id="uw" class="coord-input"></div>
+            <div class="sel-field">H <input type="number" id="uh" class="coord-input"></div>
+            <input type="text" id="imgUrl" placeholder="URL Immagine...">
+            <button id="saveBtn">PUBBLICA</button>
+            <button id="clearSelBtn" style="color:#f88; border:none; background:none; font-size:16px;">✕</button>
+        </div>
+    </div>
 
-<div id="manualPanel">
-    <h3 style="color:white;">Nuovo Blocco</h3>
-    <input id="mx" type="number" placeholder="X">
-    <input id="my" type="number" placeholder="Y">
-    <input id="mw" type="number" placeholder="W">
-    <input id="mh" type="number" placeholder="H">
-    <input type="file" id="fileInput">
-    <button id="confirmAdd" style="background:#0066cc;">Carica</button>
-    <button id="closePanel">Chiudi</button>
-</div>
+    <div class="stats-row">
+        <div style="display:flex; align-items:center;">
+            <span id="stats-label">ADMIN STATS:</span>
+            <div class="stat-item" style="margin-right:10px;">Disp: <b id="statFree">0</b></div>
+            <div class="stat-item" style="margin-right:10px;">Occ: <b id="statUsed">0</b></div>
+            <div id="sel-count-box">Area Selezione: <span id="statSel">0</span> px</div>
+        </div>
+        <div id="coords-label" style="color:#555;">X:0 Y:0</div>
+    </div>
+</header>
 
-<canvas id="c"></canvas>
+<div id="canvas-container"><canvas id="c"></canvas></div>
 
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
@@ -45,120 +108,165 @@
 <script>
 firebase.initializeApp({ apiKey:"AIzaSyDFPiQn3Uq7_OA0e7UxNoeze8z_EfndwsU", authDomain:"pixel-wall-ff621.firebaseapp.com", projectId:"pixel-wall-ff621" });
 const db = firebase.firestore();
-const CLOUD = "dkwijnvsl", PRESET = "pixelwall", W=1280, H=720;
+const W = 1280, H = 720, c = document.getElementById("c"), ctx = c.getContext("2d");
+const selUI = document.getElementById("selectionUI"), selBox = document.getElementById("sel-count-box");
 
-const c = document.getElementById("c");
-const ctx = c.getContext("2d");
-let scale = 1, ox = 0, oy = 0, blocks = [], admin = false, selectedId = null;
-const cache = {};
+let scale = 1, ox = 0, oy = 0, blocks = [], cache = {};
+let preview = { x: 0, y: 0, w: 0, h: 0, active: false };
+let currentMode = 'pan';
 
-function resize() { c.width = innerWidth; c.height = innerHeight; }
+function resize() {
+    const r = document.getElementById("canvas-container").getBoundingClientRect();
+    c.width = r.width; c.height = r.height;
+}
+window.addEventListener("resize", resize);
 resize();
 
-// LETTURA DA COLLEZIONE (Scalabile)
-db.collection("blocks").onSnapshot(snapshot => {
-    blocks = snapshot.docs.map(doc => ({
-        docId: doc.id,
-        ...doc.data()
-    }));
+db.collection("blocks").onSnapshot(s => { 
+    blocks = s.docs.map(d => d.data()); 
+    updateStats();
 });
+
+function updateStats() {
+    let used = 0;
+    blocks.forEach(b => used += (b.w * b.h));
+    document.getElementById("statFree").innerText = (W*H - used).toLocaleString();
+    document.getElementById("statUsed").innerText = used.toLocaleString();
+}
 
 function draw() {
     ctx.clearRect(0, 0, c.width, c.height);
     ctx.save();
-    ctx.translate(ox, oy);
+    ctx.translate(Math.round(ox), Math.round(oy));
     ctx.scale(scale, scale);
-    ctx.fillStyle = "#151515"; ctx.fillRect(0, 0, W, H);
-    ctx.strokeStyle = "#222"; ctx.lineWidth = 1/scale;
-    for(let x=0; x<=W; x++) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
-    for(let y=0; y<=H; y++) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+    ctx.fillStyle = "#0c0c0c"; ctx.fillRect(0, 0, W, H);
     
+    // Griglia Admin sempre visibile oltre certe soglie
+    if (scale > 5) {
+        ctx.beginPath(); ctx.strokeStyle = "rgba(212,160,23,0.15)"; ctx.lineWidth = 1/scale;
+        for(let x=0; x<=W; x+=10) { ctx.moveTo(x,0); ctx.lineTo(x,H); }
+        for(let y=0; y<=H; y+=10) { ctx.moveTo(0,y); ctx.lineTo(W,y); }
+        ctx.stroke();
+    }
+
     for(let b of blocks) {
-        if(!cache[b.img]) { let img = new Image(); img.src = b.img; cache[b.img] = img; }
+        if(!cache[b.img]) { cache[b.img] = new Image(); cache[b.img].src = b.img; }
         if(cache[b.img].complete) ctx.drawImage(cache[b.img], b.x, b.y, b.w, b.h);
-        if(b.id === selectedId) { ctx.strokeStyle = "red"; ctx.lineWidth = 3/scale; ctx.strokeRect(b.x, b.y, b.w, b.h); }
+    }
+
+    if(preview.active) {
+        ctx.fillStyle = "rgba(212, 160, 23, 0.3)"; ctx.strokeStyle = "#d4a017";
+        ctx.lineWidth = 2/scale; ctx.fillRect(preview.x, preview.y, preview.w, preview.h);
+        ctx.strokeRect(preview.x, preview.y, preview.w, preview.h);
     }
     ctx.restore();
 }
 function loop() { draw(); requestAnimationFrame(loop); }
 loop();
 
-function getPos(e) {
-    const r = c.getBoundingClientRect();
-    const cx = e.touches ? e.touches[0].clientX : e.clientX;
-    const cy = e.touches ? e.touches[0].clientY : e.clientY;
-    return { x: (cx - r.left - ox) / scale, y: (cy - r.top - oy) / scale };
+// FUNZIONE SALVATAGGIO ADMIN
+document.getElementById("saveBtn").onclick = async () => {
+    const url = document.getElementById("imgUrl").value;
+    if(!url || !preview.active) return alert("Seleziona area e inserisci URL!");
+    
+    await db.collection("blocks").add({
+        x: preview.x, y: preview.y, w: preview.w, h: preview.h, img: url
+    });
+    document.getElementById("imgUrl").value = "";
+    resetSelection();
+};
+
+/* ================= ZOOM SMART ================= */
+function applyZoom(s, centerX, centerY) {
+    const newScale = Math.max(0.1, Math.min(60, scale * s));
+    const worldX = (centerX - ox) / scale, worldY = (centerY - oy) / scale;
+    scale = newScale;
+    ox = centerX - worldX * scale; oy = centerY - worldY * scale;
+    document.getElementById("zoom-level").innerText = Math.round(scale * 100) + "%";
 }
 
-// PAN & ZOOM (Stile 13/05)
-let dragging = false, lx = 0, ly = 0, pinchDist = 0, pinchScale = 1;
-c.addEventListener("mousedown", e => { dragging = true; lx = e.clientX; ly = e.clientY; });
-window.addEventListener("mousemove", e => {
-    const p = getPos(e); document.getElementById("coords").innerText = `X:${Math.floor(p.x)} Y:${Math.floor(p.y)}`;
-    if(dragging) { ox += e.clientX - lx; oy += e.clientY - ly; lx = e.clientX; ly = e.clientY; }
-});
-window.addEventListener("mouseup", () => dragging = false);
-c.addEventListener("wheel", e => { e.preventDefault(); scale *= e.deltaY < 0 ? 1.1 : 0.9; scale = Math.max(0.1, Math.min(50, scale)); }, {passive: false});
+c.addEventListener("wheel", e => { e.preventDefault(); applyZoom(e.deltaY < 0 ? 1.1 : 0.9, e.clientX, e.clientY); }, {passive: false});
+document.getElementById("zoomIn").onclick = () => applyZoom(1.2, c.width/2, c.height/2);
+document.getElementById("zoomOut").onclick = () => applyZoom(0.8, c.width/2, c.height/2);
 
-c.addEventListener("click", e => {
-    const p = getPos(e); selectedId = null;
-    for(let i=blocks.length-1; i>=0; i--) {
-        let b = blocks[i];
-        if(p.x>=b.x && p.x<=b.x+b.w && p.y>=b.y && p.y<=b.y+b.h) { selectedId = b.id; break; }
-    }
-});
+/* ================= INPUT & SELEZIONE ================= */
+let evCache = [], prevDiff = -1, isMouseDown = false, startPos = null, lastM = {x:0, y:0};
 
-// ADMIN LOGIC
-document.getElementById("adminBtn").onclick = () => {
-    if(prompt("Password:") === "admin123") {
-        admin = true;
-        document.getElementById("removeBtn").style.display = "block";
-        document.getElementById("manualBtn").style.display = "block";
-        document.getElementById("adminBtn").style.display = "none";
+c.onpointerdown = e => {
+    evCache.push(e); isMouseDown = true; lastM = { x: e.clientX, y: e.clientY };
+    const r = c.getBoundingClientRect();
+    const wp = { x: Math.floor((e.clientX-r.left-ox)/scale), y: Math.floor((e.clientY-r.top-oy)/scale) };
+    if (evCache.length === 1 && currentMode === 'select') {
+        const hit = blocks.some(b => wp.x >= b.x && wp.x < b.x+b.w && wp.y >= b.y && wp.y < b.y+b.h);
+        if (!hit && wp.x >= 0 && wp.x < W && wp.y >= 0 && wp.y < H) {
+            startPos = wp; updatePreview(wp.x, wp.y, 1, 1);
+        } else startPos = null;
     }
 };
 
-document.getElementById("manualBtn").onclick = () => document.getElementById("manualPanel").style.display = "flex";
-document.getElementById("closePanel").onclick = () => document.getElementById("manualPanel").style.display = "none";
-
-document.getElementById("confirmAdd").onclick = async () => {
-    const file = document.getElementById("fileInput").files[0];
-    if(!file) return alert("Scegli un file");
-    const form = new FormData(); form.append("file", file); form.append("upload_preset", PRESET);
-    
-    const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD}/image/upload`, { method: "POST", body: form });
-    const data = await res.json();
-
-    // SALVATAGGIO SU COLLEZIONE (Scalabile)
-    await db.collection("blocks").add({
-        id: Date.now(), 
-        img: data.secure_url, 
-        delete_token: data.delete_token || null,
-        x: parseInt(document.getElementById("mx").value)||0, 
-        y: parseInt(document.getElementById("my").value)||0,
-        w: parseInt(document.getElementById("mw").value)||100, 
-        h: parseInt(document.getElementById("mh").value)||100
-    });
-
-    document.getElementById("manualPanel").style.display = "none";
-};
-
-document.getElementById("removeBtn").onclick = async () => {
-    if(!selectedId) return;
-    const bRem = blocks.find(b => b.id === selectedId);
-    if(bRem) {
-        if(bRem.delete_token) {
-            const f = new FormData(); f.append("token", bRem.delete_token);
-            fetch(`https://api.cloudinary.com/v1_1/${CLOUD}/delete_by_token`, { method: "POST", body: f });
+c.onpointermove = e => {
+    const index = evCache.findIndex(ev => ev.pointerId === e.pointerId);
+    if (index !== -1) evCache[index] = e;
+    if (evCache.length === 2) {
+        const curDiff = Math.hypot(evCache[0].clientX-evCache[1].clientX, evCache[0].clientY-evCache[1].clientY);
+        const midX = (evCache[0].clientX+evCache[1].clientX)/2, midY = (evCache[0].clientY+evCache[1].clientY)/2;
+        if (prevDiff > 0) applyZoom(curDiff/prevDiff, midX, midY);
+        prevDiff = curDiff; return;
+    }
+    if (isMouseDown && evCache.length === 1) {
+        const r = c.getBoundingClientRect();
+        const cw = { x: Math.floor((e.clientX-r.left-ox)/scale), y: Math.floor((e.clientY-r.top-oy)/scale) };
+        if (currentMode === 'select' && startPos) {
+            let x1 = Math.max(0, Math.min(startPos.x, cw.x)), y1 = Math.max(0, Math.min(startPos.y, cw.y));
+            let x2 = Math.min(W, Math.max(startPos.x, cw.x)+1), y2 = Math.min(H, Math.max(startPos.y, cw.y)+1);
+            if (!checkCollision(x1, y1, x2-x1, y2-y1)) updatePreview(x1, y1, x2-x1, y2-y1);
+        } else {
+            ox += e.clientX - lastM.x; oy += e.clientY - lastM.y;
+            lastM = { x: e.clientX, y: e.clientY };
         }
-        // ELIMINAZIONE DOCUMENTO SPECIFICO
-        await db.collection("blocks").doc(bRem.docId).delete();
-        selectedId = null;
+        document.getElementById("coords-label").innerText = `X:${cw.x} Y:${cw.y}`;
     }
 };
 
-document.getElementById("resetBtn").onclick = () => { scale = 1; ox = (c.width - W)/2; oy = (c.height - H)/2; };
-window.addEventListener("resize", resize);
+c.onpointerup = c.onpointercancel = e => {
+    evCache = evCache.filter(ev => ev.pointerId !== e.pointerId);
+    if (evCache.length < 2) prevDiff = -1;
+    isMouseDown = false;
+};
+
+function updatePreview(x, y, w, h) {
+    preview = { x, y, w, h, active: true };
+    selUI.style.display = "flex";
+    selBox.style.display = "block";
+    document.getElementById("ux").value = x; document.getElementById("uy").value = y;
+    document.getElementById("uw").value = w; document.getElementById("uh").value = h;
+    document.getElementById("statSel").innerText = (w * h).toLocaleString();
+}
+
+["ux", "uy", "uw", "uh"].forEach(id => {
+    document.getElementById(id).addEventListener("input", () => {
+        const nx = parseInt(document.getElementById("ux").value) || 0;
+        const ny = parseInt(document.getElementById("uy").value) || 0;
+        const nw = parseInt(document.getElementById("uw").value) || 1;
+        const nh = parseInt(document.getElementById("uh").value) || 1;
+        if (!checkCollision(nx, ny, nw, nh)) updatePreview(nx, ny, nw, nh);
+    });
+});
+
+function setMode(m) {
+    currentMode = m;
+    document.getElementById("modePan").classList.toggle("active", m === 'pan');
+    document.getElementById("modeSelect").classList.toggle("active", m === 'select');
+    if (m === 'pan') resetSelection();
+}
+function resetSelection() { preview.active = false; selUI.style.display = "none"; selBox.style.display = "none"; }
+document.getElementById("modePan").onclick = () => setMode('pan');
+document.getElementById("modeSelect").onclick = () => setMode('select');
+document.getElementById("clearSelBtn").onclick = resetSelection;
+document.getElementById("resetBtn").onclick = () => { scale = 1; ox = (c.width-W)/2; oy = (c.height-H)/2; applyZoom(1, 0, 0); };
+
+function checkCollision(x, y, w, h) { return blocks.some(b => x < b.x + b.w && x + w > b.x && y < b.y + b.h && y + h > b.y); }
+window.onload = () => { ox = (c.width-W)/2; oy = (c.height-H)/2; };
 </script>
 </body>
 </html>
