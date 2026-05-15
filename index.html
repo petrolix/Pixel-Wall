@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Pixel Wall - Master Suite_2</title>
+    <title>Pixel Wall -2Master Suite</title>
     <style>
         *{margin:0;padding:0;box-sizing:border-box;}
         body { 
@@ -11,46 +11,30 @@
             font-family: 'Segoe UI', system-ui, sans-serif; 
             display: flex; flex-direction: column; height: 100vh;
         }
-
         header {
             background: #1a1a1a; color: white; padding: 10px 20px;
             display: flex; align-items: center; justify-content: space-between;
             border-bottom: 1px solid #333; z-index: 10000;
         }
-
         .controls-group { display: flex; align-items: center; gap: 12px; }
-
-        /* Toggle Modalità */
-        .mode-toggle {
-            display: flex; background: #000; padding: 3px; border-radius: 8px; border: 1px solid #444;
-        }
+        .mode-toggle { display: flex; background: #000; padding: 3px; border-radius: 8px; border: 1px solid #444; }
         .mode-btn {
             background: transparent; color: #666; border: none; padding: 6px 12px;
             border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: bold;
             transition: all 0.2s;
         }
         .mode-btn.active { background: #333; color: lime; }
-
         #selectionUI {
             display: flex; align-items: center; gap: 10px;
             background: #252525; padding: 5px 12px; border-radius: 8px;
             border: 1px solid #444; visibility: hidden;
         }
         #selectionUI.active { visibility: visible; border-color: lime; }
-
         .input-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #888; }
-        input {
-            width: 50px; background: #000; border: 1px solid #555; 
-            color: lime; padding: 3px; border-radius: 4px; text-align: center;
-        }
-
-        button {
-            background: #333; color: #eee; border: 1px solid #555; 
-            padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;
-        }
+        input { width: 50px; background: #000; border: 1px solid #555; color: lime; padding: 3px; border-radius: 4px; text-align: center; }
+        button { background: #333; color: #eee; border: 1px solid #555; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; }
         .btn-red { color: #f88; border-color: #555; }
         .btn-red:hover { background: #400; color: #fff; border-color: red; }
-
         #canvas-container { flex-grow: 1; position: relative; overflow: hidden; }
         canvas.mode-pan { cursor: grab; }
         canvas.mode-pan:active { cursor: grabbing; }
@@ -68,7 +52,6 @@
         <button id="resetBtn">Centra</button>
         <span id="coords-label" style="font-family: monospace; color: #555; font-size: 12px;">X:0 Y:0</span>
     </div>
-
     <div id="selectionUI">
         <div class="input-item">X <input type="number" id="ux"></div>
         <div class="input-item">Y <input type="number" id="uy"></div>
@@ -78,9 +61,7 @@
     </div>
 </header>
 
-<div id="canvas-container">
-    <canvas id="c" class="mode-pan"></canvas>
-</div>
+<div id="canvas-container"><canvas id="c" class="mode-pan"></canvas></div>
 
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
@@ -109,25 +90,20 @@ function draw() {
     ctx.save();
     ctx.translate(Math.round(ox), Math.round(oy));
     ctx.scale(scale, scale);
-    
     ctx.fillStyle = "#111"; ctx.fillRect(0, 0, W, H);
-
     if (scale > 8) {
         ctx.beginPath(); ctx.strokeStyle = "rgba(255,255,255,0.1)"; ctx.lineWidth = 1/scale;
         for(let x=0; x<=W; x++) { ctx.moveTo(x,0); ctx.lineTo(x,H); }
         for(let y=0; y<=H; y++) { ctx.moveTo(0,y); ctx.lineTo(W,y); }
         ctx.stroke();
     }
-
     for(let b of blocks) {
         if(!cache[b.img]) { cache[b.img] = new Image(); cache[b.img].src = b.img; }
         if(cache[b.img].complete) ctx.drawImage(cache[b.img], b.x, b.y, b.w, b.h);
     }
-
     if(preview.active) {
         ctx.fillStyle = "rgba(0, 255, 0, 0.2)"; ctx.strokeStyle = "lime";
-        ctx.lineWidth = 2/scale;
-        ctx.fillRect(preview.x, preview.y, preview.w, preview.h);
+        ctx.lineWidth = 2/scale; ctx.fillRect(preview.x, preview.y, preview.w, preview.h);
         ctx.strokeRect(preview.x, preview.y, preview.w, preview.h);
     }
     ctx.restore();
@@ -135,7 +111,6 @@ function draw() {
 function loop() { draw(); requestAnimationFrame(loop); }
 loop();
 
-/* ================= GESTIONE MODALITÀ ================= */
 document.getElementById("modePan").onclick = () => setMode('pan');
 document.getElementById("modeSelect").onclick = () => setMode('select');
 
@@ -144,11 +119,7 @@ function setMode(m) {
     document.getElementById("modePan").classList.toggle("active", m === 'pan');
     document.getElementById("modeSelect").classList.toggle("active", m === 'select');
     c.className = m === 'pan' ? 'mode-pan' : 'mode-select';
-    
-    // RESET SELEZIONE AUTOMATICO quando si torna in modalità NAVIGA
-    if (m === 'pan') {
-        resetSelection();
-    }
+    if (m === 'pan') resetSelection();
 }
 
 function resetSelection() {
@@ -156,10 +127,8 @@ function resetSelection() {
     selUI.style.visibility = "hidden";
     selUI.classList.remove("active");
 }
-
 document.getElementById("clearSelBtn").onclick = resetSelection;
 
-/* ================= GESTIONE INPUT ================= */
 let isAction = false, startPos = {x:0, y:0}, lastM = {x:0, y:0};
 
 c.addEventListener("pointerdown", e => {
@@ -168,19 +137,12 @@ c.addEventListener("pointerdown", e => {
         x: Math.floor((e.clientX - r.left - ox) / scale),
         y: Math.floor((e.clientY - r.top - oy) / scale)
     };
-
-    // Controllo se il click è sopra un'immagine esistente
     const hit = blocks.some(b => wp.x >= b.x && wp.x < b.x + b.w && wp.y >= b.y && wp.y < b.y + b.h);
-
-    // Se siamo in modalità selezione E non abbiamo colpito un'immagine E siamo dentro i bordi
     if (currentMode === 'select' && !hit && wp.x >= 0 && wp.x < W && wp.y >= 0 && wp.y < H) {
-        isAction = true; 
-        startPos = wp;
+        isAction = true; startPos = wp;
         updatePreview(wp.x, wp.y, 1, 1);
     } else {
-        // Altrimenti facciamo solo Pan (spostamento)
-        isAction = true; 
-        lastM = { x: e.clientX, y: e.clientY };
+        isAction = true; lastM = { x: e.clientX, y: e.clientY };
     }
 });
 
@@ -191,61 +153,59 @@ window.addEventListener("pointermove", e => {
         y: Math.floor((e.clientY - r.top - oy) / scale)
     };
     document.getElementById("coords-label").innerText = `X:${cw.x} Y:${cw.y}`;
-
     if (!isAction) return;
-
-    if (currentMode === 'select' && isAction && startPos.x !== undefined && !lastM.x) {
-        // Logica di disegno rettangolo
+    if (currentMode === 'select' && startPos.x !== undefined && !lastM.x) {
         let x1 = Math.max(0, Math.min(startPos.x, cw.x));
         let y1 = Math.max(0, Math.min(startPos.y, cw.y));
         let x2 = Math.min(W, Math.max(startPos.x, cw.x) + 1);
         let y2 = Math.min(H, Math.max(startPos.y, cw.y) + 1);
-        updatePreview(x1, y1, x2 - x1, y2 - y1);
+        
+        // Verifica se l'area che sto creando tocca blocchi esistenti
+        if (!checkCollision(x1, y1, x2-x1, y2-y1)) {
+            updatePreview(x1, y1, x2 - x1, y2 - y1);
+        }
     } else {
-        // Logica di spostamento (Pan)
         ox += e.clientX - lastM.x;
         oy += e.clientY - lastM.y;
         lastM = { x: e.clientX, y: e.clientY };
     }
 });
 
-window.addEventListener("pointerup", () => { 
-    isAction = false; 
-    lastM = {x:0, y:0}; // Reset punto di trascinamento
-});
+window.addEventListener("pointerup", () => { isAction = false; lastM = {x:0, y:0}; });
+
+// Funzione fondamentale: controlla se un rettangolo si sovrappone a immagini salvate
+function checkCollision(x, y, w, h) {
+    return blocks.some(b => {
+        return x < b.x + b.w && x + w > b.x && y < b.y + b.h && y + h > b.y;
+    });
+}
 
 function updatePreview(x, y, w, h) {
     preview.x = x; preview.y = y; preview.w = w; preview.h = h;
     preview.active = true;
     selUI.style.visibility = "visible";
     selUI.classList.add("active");
-    document.getElementById("ux").value = x; 
-    document.getElementById("uy").value = y;
-    document.getElementById("uw").value = w; 
-    document.getElementById("uh").value = h;
+    document.getElementById("ux").value = x; document.getElementById("uy").value = y;
+    document.getElementById("uw").value = w; document.getElementById("uh").value = h;
 }
 
-// Sync Manuale dei box di testo
 ["ux", "uy", "uw", "uh"].forEach(id => {
     document.getElementById(id).addEventListener("input", () => {
         const nx = parseInt(document.getElementById("ux").value) || 0;
         const ny = parseInt(document.getElementById("uy").value) || 0;
         const nw = parseInt(document.getElementById("uw").value) || 1;
         const nh = parseInt(document.getElementById("uh").value) || 1;
-        updatePreview(nx, ny, nw, nh);
+        // Se il cambio manuale causa collisione, non aggiorna
+        if (!checkCollision(nx, ny, nw, nh)) updatePreview(nx, ny, nw, nh);
     });
 });
 
-/* ================= ZOOM ================= */
 c.addEventListener("wheel", e => {
     e.preventDefault();
-    const s = e.deltaY < 0 ? 1.1 : 0.9;
-    scale = Math.max(0.1, Math.min(60, scale * s));
+    scale = Math.max(0.1, Math.min(60, scale * (e.deltaY < 0 ? 1.1 : 0.9)));
 }, {passive: false});
 
-document.getElementById("resetBtn").onclick = () => {
-    scale = 1; ox = (c.width - W)/2; oy = (c.height - H)/2;
-};
+document.getElementById("resetBtn").onclick = () => { scale = 1; ox = (c.width - W)/2; oy = (c.height - H)/2; };
 window.onload = () => { ox = (c.width - W)/2; oy = (c.height - H)/2; };
 </script>
 </body>
