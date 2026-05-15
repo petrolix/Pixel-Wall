@@ -27,6 +27,7 @@
         .mode-btn {
             background: transparent; color: #666; border: none; padding: 6px 12px;
             border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: bold;
+            transition: all 0.2s;
         }
         .mode-btn.active { background: #333; color: lime; }
 
@@ -47,11 +48,10 @@
             background: #333; color: #eee; border: 1px solid #555; 
             padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;
         }
-        .btn-red { color: #f88; }
-        .btn-red:hover { background: #400; color: #fff; }
+        .btn-red { color: #f88; border-color: #555; }
+        .btn-red:hover { background: #400; color: #fff; border-color: red; }
 
         #canvas-container { flex-grow: 1; position: relative; overflow: hidden; }
-        /* Il cursore cambia in base alla modalità */
         canvas.mode-pan { cursor: grab; }
         canvas.mode-pan:active { cursor: grabbing; }
         canvas.mode-select { cursor: crosshair; }
@@ -93,7 +93,7 @@ const selUI = document.getElementById("selectionUI");
 
 let scale = 1, ox = 0, oy = 0, blocks = [], cache = {};
 let preview = { x: 0, y: 0, w: 0, h: 0, active: false };
-let currentMode = 'pan'; // 'pan' o 'select'
+let currentMode = 'pan';
 
 function resize() {
     const r = document.getElementById("canvas-container").getBoundingClientRect();
@@ -135,10 +135,7 @@ function draw() {
 function loop() { draw(); requestAnimationFrame(loop); }
 loop();
 
-/* ================= GESTIONE INPUT ================= */
-let isAction = false, startPos = {x:0, y:0}, lastM = {x:0, y:0};
-
-// Cambio Modalità
+/* ================= GESTIONE MODALITÀ ================= */
 document.getElementById("modePan").onclick = () => setMode('pan');
 document.getElementById("modeSelect").onclick = () => setMode('select');
 
@@ -147,7 +144,23 @@ function setMode(m) {
     document.getElementById("modePan").classList.toggle("active", m === 'pan');
     document.getElementById("modeSelect").classList.toggle("active", m === 'select');
     c.className = m === 'pan' ? 'mode-pan' : 'mode-select';
+    
+    // RESET SELEZIONE AUTOMATICO quando si torna in modalità NAVIGA
+    if (m === 'pan') {
+        resetSelection();
+    }
 }
+
+function resetSelection() {
+    preview.active = false;
+    selUI.style.visibility = "hidden";
+    selUI.classList.remove("active");
+}
+
+document.getElementById("clearSelBtn").onclick = resetSelection;
+
+/* ================= GESTIONE INPUT ================= */
+let isAction = false, startPos = {x:0, y:0}, lastM = {x:0, y:0};
 
 c.addEventListener("pointerdown", e => {
     const r = c.getBoundingClientRect();
@@ -156,14 +169,18 @@ c.addEventListener("pointerdown", e => {
         y: Math.floor((e.clientY - r.top - oy) / scale)
     };
 
-    // CONTROLLO COLLISIONE: Non selezionare se clicchi su un'immagine
+    // Controllo se il click è sopra un'immagine esistente
     const hit = blocks.some(b => wp.x >= b.x && wp.x < b.x + b.w && wp.y >= b.y && wp.y < b.y + b.h);
 
+    // Se siamo in modalità selezione E non abbiamo colpito un'immagine E siamo dentro i bordi
     if (currentMode === 'select' && !hit && wp.x >= 0 && wp.x < W && wp.y >= 0 && wp.y < H) {
-        isAction = true; startPos = wp;
+        isAction = true; 
+        startPos = wp;
         updatePreview(wp.x, wp.y, 1, 1);
-    } else if (currentMode === 'pan' || hit) {
-        isAction = true; lastM = { x: e.clientX, y: e.clientY };
+    } else {
+        // Altrimenti facciamo solo Pan (spostamento)
+        isAction = true; 
+        lastM = { x: e.clientX, y: e.clientY };
     }
 });
 
@@ -177,36 +194,47 @@ window.addEventListener("pointermove", e => {
 
     if (!isAction) return;
 
-    if (currentMode === 'select' && !isPanningInstead) {
+    if (currentMode === 'select' && isAction && startPos.x !== undefined && !lastM.x) {
+        // Logica di disegno rettangolo
         let x1 = Math.max(0, Math.min(startPos.x, cw.x));
         let y1 = Math.max(0, Math.min(startPos.y, cw.y));
         let x2 = Math.min(W, Math.max(startPos.x, cw.x) + 1);
         let y2 = Math.min(H, Math.max(startPos.y, cw.y) + 1);
         updatePreview(x1, y1, x2 - x1, y2 - y1);
     } else {
+        // Logica di spostamento (Pan)
         ox += e.clientX - lastM.x;
         oy += e.clientY - lastM.y;
         lastM = { x: e.clientX, y: e.clientY };
     }
 });
 
-// Variabile di supporto per evitare conflitti durante il drag
-let isPanningInstead = false;
-
-window.addEventListener("pointerup", () => { isAction = false; isPanningInstead = false; });
+window.addEventListener("pointerup", () => { 
+    isAction = false; 
+    lastM = {x:0, y:0}; // Reset punto di trascinamento
+});
 
 function updatePreview(x, y, w, h) {
     preview.x = x; preview.y = y; preview.w = w; preview.h = h;
     preview.active = true;
     selUI.style.visibility = "visible";
     selUI.classList.add("active");
-    document.getElementById("ux").value = x; document.getElementById("uy").value = y;
-    document.getElementById("uw").value = w; document.getElementById("uh").value = h;
+    document.getElementById("ux").value = x; 
+    document.getElementById("uy").value = y;
+    document.getElementById("uw").value = w; 
+    document.getElementById("uh").value = h;
 }
 
-document.getElementById("clearSelBtn").onclick = () => {
-    preview.active = false; selUI.style.visibility = "hidden"; selUI.classList.remove("active");
-};
+// Sync Manuale dei box di testo
+["ux", "uy", "uw", "uh"].forEach(id => {
+    document.getElementById(id).addEventListener("input", () => {
+        const nx = parseInt(document.getElementById("ux").value) || 0;
+        const ny = parseInt(document.getElementById("uy").value) || 0;
+        const nw = parseInt(document.getElementById("uw").value) || 1;
+        const nh = parseInt(document.getElementById("uh").value) || 1;
+        updatePreview(nx, ny, nw, nh);
+    });
+});
 
 /* ================= ZOOM ================= */
 c.addEventListener("wheel", e => {
