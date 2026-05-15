@@ -34,7 +34,6 @@
         }
         .mode-btn.active { background: #333; color: lime; }
 
-        /* UI SELEZIONE */
         #selectionUI { 
             display: none; align-items: center; gap: 6px; 
             background: #252525; padding: 4px 10px; border-radius: 8px; border: 1px solid lime;
@@ -42,13 +41,14 @@
         .sel-field { display: flex; align-items: center; gap: 3px; font-size: 10px; color: #aaa; }
         input { width: 42px; background: #000; border: 1px solid #555; color: lime; padding: 2px; border-radius: 4px; text-align: center; font-size: 11px; }
         
-        /* Statistiche */
         #stats-label { color: #555; font-weight: bold; margin-right: 5px; }
         .stat-item b { color: lime; }
         #sel-count-box { color: yellow; font-weight: bold; margin-left: 10px; display: none; }
 
         #canvas-container { flex-grow: 1; position: relative; overflow: hidden; background: #000; }
         canvas { display: block; image-rendering: pixelated; }
+        canvas.mode-pan { cursor: grab; }
+        canvas.mode-pan:active { cursor: grabbing; }
         button { background:#333; color:white; border:1px solid #444; border-radius:4px; cursor:pointer; padding: 4px 8px; font-size: 11px; }
     </style>
 </head>
@@ -89,7 +89,7 @@
     </div>
 </header>
 
-<div id="canvas-container"><canvas id="c"></canvas></div>
+<div id="canvas-container"><canvas id="c" class="mode-pan"></canvas></div>
 
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
@@ -162,9 +162,11 @@ document.getElementById("zoomIn").onclick = () => applyZoom(1.2, c.width/2, c.he
 document.getElementById("zoomOut").onclick = () => applyZoom(0.8, c.width/2, c.height/2);
 
 let evCache = [], prevDiff = -1, isMouseDown = false, startPos = null, lastM = {x:0, y:0};
+let totalMovement = 0; // Traccia lo spostamento per evitare falsi click sui link
 
 c.onpointerdown = e => {
     evCache.push(e); isMouseDown = true; lastM = { x: e.clientX, y: e.clientY };
+    totalMovement = 0;
     const r = c.getBoundingClientRect();
     const wp = { x: Math.floor((e.clientX-r.left-ox)/scale), y: Math.floor((e.clientY-r.top-oy)/scale) };
     if (evCache.length === 1 && currentMode === 'select') {
@@ -187,6 +189,10 @@ c.onpointermove = e => {
     if (isMouseDown && evCache.length === 1) {
         const r = c.getBoundingClientRect();
         const cw = { x: Math.floor((e.clientX-r.left-ox)/scale), y: Math.floor((e.clientY-r.top-oy)/scale) };
+        
+        // Accumula la distanza di movimento pixel dello schermo
+        totalMovement += Math.hypot(e.clientX - lastM.x, e.clientY - lastM.y);
+
         if (currentMode === 'select' && startPos) {
             let x1 = Math.max(0, Math.min(startPos.x, cw.x)), y1 = Math.max(0, Math.min(startPos.y, cw.y));
             let x2 = Math.min(W, Math.max(startPos.x, cw.x)+1), y2 = Math.min(H, Math.max(startPos.y, cw.y)+1);
@@ -200,6 +206,21 @@ c.onpointermove = e => {
 };
 
 c.onpointerup = c.onpointercancel = e => {
+    // GESTIONE DEI CLICK SUI LINK (Eseguito solo se il mouse non si è mosso di molto e siamo in modalità Pan)
+    if (isMouseDown && evCache.length === 1 && totalMovement < 5 && currentMode === 'pan') {
+        const r = c.getBoundingClientRect();
+        const clickX = (e.clientX - r.left - ox) / scale;
+        const clickY = (e.clientY - r.top - oy) / scale;
+        
+        const target = blocks.find(b => clickX >= b.x && clickX < b.x + b.w && clickY >= b.y && clickY < b.y + b.h);
+        if (target && target.link) {
+            let url = target.link.trim();
+            // Forza protocollo di sicurezza se assente
+            if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+            window.open(url, '_blank');
+        }
+    }
+
     evCache = evCache.filter(ev => ev.pointerId !== e.pointerId);
     if (evCache.length < 2) prevDiff = -1;
     isMouseDown = false;
@@ -214,7 +235,6 @@ function updatePreview(x, y, w, h) {
     document.getElementById("statSel").innerText = (w * h).toLocaleString();
 }
 
-// GESTIONE INPUT MANUALE
 ["ux", "uy", "uw", "uh"].forEach(id => {
     document.getElementById(id).addEventListener("input", () => {
         const nx = parseInt(document.getElementById("ux").value) || 0;
@@ -229,11 +249,10 @@ function setMode(m) {
     currentMode = m;
     document.getElementById("modePan").classList.toggle("active", m === 'pan');
     document.getElementById("modeSelect").classList.toggle("active", m === 'select');
+    c.className = m === 'pan' ? 'mode-pan' : '';
     if (m === 'pan') resetSelection();
 }
-function resetSelection() { 
-    preview.active = false; selUI.style.display = "none"; selBox.style.display = "none"; 
-}
+function resetSelection() { preview.active = false; selUI.style.display = "none"; selBox.style.display = "none"; }
 document.getElementById("modePan").onclick = () => setMode('pan');
 document.getElementById("modeSelect").onclick = () => setMode('select');
 document.getElementById("clearSelBtn").onclick = resetSelection;
