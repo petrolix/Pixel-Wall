@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Pixel Wall - PANNELLO ADMIN</title>
+    <title>Pixel Wall - ADMIN LOGIN</title>
     <style>
         *{margin:0;padding:0;box-sizing:border-box; touch-action: none; }
         body { 
@@ -27,14 +27,17 @@
         }
         
         .controls-group { display: flex; align-items: center; gap: 10px; }
-        .mode-toggle { display: flex; background: #000; padding: 2px; border-radius: 8px; border: 1px solid #444; }
-        .mode-btn {
-            background: transparent; color: #666; border: none; padding: 6px 10px;
-            border-radius: 6px; cursor: pointer; font-size: 10px; font-weight: bold;
-        }
-        .mode-btn.active { background: #333; color: #d4a017; }
+        
+        /* Pannello Admin inizialmente nascosto */
+        #adminControls { display: none; align-items: center; gap: 10px; }
 
-        /* UI SELEZIONE & SALVATAGGIO */
+        /* Pulsante Login */
+        #loginBtn { 
+            background: #d4a017; color: black; font-weight: bold; 
+            border: none; padding: 5px 12px; border-radius: 6px; cursor: pointer;
+        }
+
+        /* UI SELEZIONE & UPLOAD */
         #selectionUI { 
             display: none; align-items: center; gap: 8px; 
             background: #252525; padding: 4px 10px; border-radius: 8px; border: 1px solid #d4a017;
@@ -45,20 +48,17 @@
             padding: 3px; border-radius: 4px; text-align: center; font-size: 11px; 
         }
         .coord-input { width: 45px; }
-        #imgUrl { width: 150px; text-align: left; }
+        #fileInput { font-size: 10px; color: #aaa; width: 150px; border: none; }
         
-        /* Statistiche */
-        #stats-label { color: #d4a017; font-weight: bold; margin-right: 5px; }
-        .stat-item b { color: #eee; }
-        #sel-count-box { color: #00ffcc; font-weight: bold; margin-left: 10px; display: none; }
-
+        #saveBtn { background: #d4a017; color: #000; font-weight: bold; border: none; padding: 4px 12px; border-radius: 4px; }
+        
         #canvas-container { flex-grow: 1; position: relative; overflow: hidden; background: #000; }
         canvas { display: block; image-rendering: pixelated; }
-        
         button { background:#333; color:white; border:1px solid #444; border-radius:4px; cursor:pointer; padding: 4px 8px; font-size: 11px; }
-        button:hover { background:#444; }
-        #saveBtn { background: #d4a017; color: #000; font-weight: bold; border: none; }
-        #saveBtn:hover { background: #ffbf00; }
+        
+        .mode-toggle { display: flex; background: #000; padding: 2px; border-radius: 8px; border: 1px solid #444; }
+        .mode-btn { background: transparent; color: #666; border: none; padding: 6px 10px; border-radius: 6px; font-size: 10px; font-weight: bold; }
+        .mode-btn.active { background: #333; color: #d4a017; }
     </style>
 </head>
 <body>
@@ -66,16 +66,21 @@
 <header>
     <div class="top-row">
         <div class="controls-group">
-            <div class="mode-toggle">
-                <button id="modePan" class="mode-btn active">NAVIGA</button>
-                <button id="modeSelect" class="mode-btn">SELEZIONA</button>
+            <div id="adminControls">
+                <div class="mode-toggle">
+                    <button id="modePan" class="mode-btn active">NAVIGA</button>
+                    <button id="modeSelect" class="mode-btn">SELEZIONA</button>
+                </div>
+                <button id="resetBtn">RESET</button>
             </div>
+            
+            <button id="loginBtn">LOGIN ADMIN</button>
+
             <div style="display:flex; align-items:center; gap:5px;">
                 <button id="zoomOut">-</button>
                 <span id="zoom-level" style="color:#d4a017; font-family:monospace; min-width:35px;">100%</span>
                 <button id="zoomIn">+</button>
             </div>
-            <button id="resetBtn">RESET</button>
         </div>
 
         <div id="selectionUI">
@@ -83,7 +88,7 @@
             <div class="sel-field">Y <input type="number" id="uy" class="coord-input"></div>
             <div class="sel-field">W <input type="number" id="uw" class="coord-input"></div>
             <div class="sel-field">H <input type="number" id="uh" class="coord-input"></div>
-            <input type="text" id="imgUrl" placeholder="URL Immagine...">
+            <input type="file" id="fileInput" accept="image/*">
             <button id="saveBtn">PUBBLICA</button>
             <button id="clearSelBtn" style="color:#f88; border:none; background:none; font-size:16px;">✕</button>
         </div>
@@ -91,10 +96,12 @@
 
     <div class="stats-row">
         <div style="display:flex; align-items:center;">
-            <span id="stats-label">ADMIN STATS:</span>
-            <div class="stat-item" style="margin-right:10px;">Disp: <b id="statFree">0</b></div>
-            <div class="stat-item" style="margin-right:10px;">Occ: <b id="statUsed">0</b></div>
-            <div id="sel-count-box">Area Selezione: <span id="statSel">0</span> px</div>
+            <span style="color:#d4a017; font-weight:bold; margin-right:10px;">PANNELLO:</span>
+            <div style="margin-right:10px;">Disp: <b id="statFree" style="color:#eee">0</b></div>
+            <div>Occ: <b id="statUsed" style="color:#eee">0</b></div>
+            <div id="sel-count-box" style="color:#00ffcc; font-weight:bold; margin-left:15px; display:none;">
+                Area: <span id="statSel">0</span> px
+            </div>
         </div>
         <div id="coords-label" style="color:#555;">X:0 Y:0</div>
     </div>
@@ -111,9 +118,23 @@ const db = firebase.firestore();
 const W = 1280, H = 720, c = document.getElementById("c"), ctx = c.getContext("2d");
 const selUI = document.getElementById("selectionUI"), selBox = document.getElementById("sel-count-box");
 
+let isAdmin = false;
 let scale = 1, ox = 0, oy = 0, blocks = [], cache = {};
 let preview = { x: 0, y: 0, w: 0, h: 0, active: false };
 let currentMode = 'pan';
+
+// --- GESTIONE LOGIN ---
+document.getElementById("loginBtn").onclick = () => {
+    const pass = prompt("Inserisci password:");
+    if(pass === "admin123") {
+        isAdmin = true;
+        document.getElementById("loginBtn").style.display = "none";
+        document.getElementById("adminControls").style.display = "flex";
+        alert("Accesso Amministratore Attivo");
+    } else {
+        alert("Password errata!");
+    }
+};
 
 function resize() {
     const r = document.getElementById("canvas-container").getBoundingClientRect();
@@ -141,7 +162,6 @@ function draw() {
     ctx.scale(scale, scale);
     ctx.fillStyle = "#0c0c0c"; ctx.fillRect(0, 0, W, H);
     
-    // Griglia Admin sempre visibile oltre certe soglie
     if (scale > 5) {
         ctx.beginPath(); ctx.strokeStyle = "rgba(212,160,23,0.15)"; ctx.lineWidth = 1/scale;
         for(let x=0; x<=W; x+=10) { ctx.moveTo(x,0); ctx.lineTo(x,H); }
@@ -154,7 +174,7 @@ function draw() {
         if(cache[b.img].complete) ctx.drawImage(cache[b.img], b.x, b.y, b.w, b.h);
     }
 
-    if(preview.active) {
+    if(preview.active && isAdmin) {
         ctx.fillStyle = "rgba(212, 160, 23, 0.3)"; ctx.strokeStyle = "#d4a017";
         ctx.lineWidth = 2/scale; ctx.fillRect(preview.x, preview.y, preview.w, preview.h);
         ctx.strokeRect(preview.x, preview.y, preview.w, preview.h);
@@ -164,19 +184,19 @@ function draw() {
 function loop() { draw(); requestAnimationFrame(loop); }
 loop();
 
-// FUNZIONE SALVATAGGIO ADMIN
-document.getElementById("saveBtn").onclick = async () => {
-    const url = document.getElementById("imgUrl").value;
-    if(!url || !preview.active) return alert("Seleziona area e inserisci URL!");
-    
-    await db.collection("blocks").add({
-        x: preview.x, y: preview.y, w: preview.w, h: preview.h, img: url
-    });
-    document.getElementById("imgUrl").value = "";
-    resetSelection();
+document.getElementById("saveBtn").onclick = () => {
+    if(!isAdmin) return;
+    const file = document.getElementById("fileInput").files[0];
+    if(!file || !preview.active) return alert("Seleziona area e scegli un file!");
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        await db.collection("blocks").add({ x: preview.x, y: preview.y, w: preview.w, h: preview.h, img: e.target.result });
+        document.getElementById("fileInput").value = "";
+        resetSelection();
+    };
+    reader.readAsDataURL(file);
 };
 
-/* ================= ZOOM SMART ================= */
 function applyZoom(s, centerX, centerY) {
     const newScale = Math.max(0.1, Math.min(60, scale * s));
     const worldX = (centerX - ox) / scale, worldY = (centerY - oy) / scale;
@@ -189,11 +209,11 @@ c.addEventListener("wheel", e => { e.preventDefault(); applyZoom(e.deltaY < 0 ? 
 document.getElementById("zoomIn").onclick = () => applyZoom(1.2, c.width/2, c.height/2);
 document.getElementById("zoomOut").onclick = () => applyZoom(0.8, c.width/2, c.height/2);
 
-/* ================= INPUT & SELEZIONE ================= */
 let evCache = [], prevDiff = -1, isMouseDown = false, startPos = null, lastM = {x:0, y:0};
 
 c.onpointerdown = e => {
     evCache.push(e); isMouseDown = true; lastM = { x: e.clientX, y: e.clientY };
+    if (!isAdmin) return;
     const r = c.getBoundingClientRect();
     const wp = { x: Math.floor((e.clientX-r.left-ox)/scale), y: Math.floor((e.clientY-r.top-oy)/scale) };
     if (evCache.length === 1 && currentMode === 'select') {
@@ -216,7 +236,7 @@ c.onpointermove = e => {
     if (isMouseDown && evCache.length === 1) {
         const r = c.getBoundingClientRect();
         const cw = { x: Math.floor((e.clientX-r.left-ox)/scale), y: Math.floor((e.clientY-r.top-oy)/scale) };
-        if (currentMode === 'select' && startPos) {
+        if (isAdmin && currentMode === 'select' && startPos) {
             let x1 = Math.max(0, Math.min(startPos.x, cw.x)), y1 = Math.max(0, Math.min(startPos.y, cw.y));
             let x2 = Math.min(W, Math.max(startPos.x, cw.x)+1), y2 = Math.min(H, Math.max(startPos.y, cw.y)+1);
             if (!checkCollision(x1, y1, x2-x1, y2-y1)) updatePreview(x1, y1, x2-x1, y2-y1);
@@ -235,6 +255,7 @@ c.onpointerup = c.onpointercancel = e => {
 };
 
 function updatePreview(x, y, w, h) {
+    if(!isAdmin) return;
     preview = { x, y, w, h, active: true };
     selUI.style.display = "flex";
     selBox.style.display = "block";
@@ -245,6 +266,7 @@ function updatePreview(x, y, w, h) {
 
 ["ux", "uy", "uw", "uh"].forEach(id => {
     document.getElementById(id).addEventListener("input", () => {
+        if(!isAdmin) return;
         const nx = parseInt(document.getElementById("ux").value) || 0;
         const ny = parseInt(document.getElementById("uy").value) || 0;
         const nw = parseInt(document.getElementById("uw").value) || 1;
@@ -264,7 +286,6 @@ document.getElementById("modePan").onclick = () => setMode('pan');
 document.getElementById("modeSelect").onclick = () => setMode('select');
 document.getElementById("clearSelBtn").onclick = resetSelection;
 document.getElementById("resetBtn").onclick = () => { scale = 1; ox = (c.width-W)/2; oy = (c.height-H)/2; applyZoom(1, 0, 0); };
-
 function checkCollision(x, y, w, h) { return blocks.some(b => x < b.x + b.w && x + w > b.x && y < b.y + b.h && y + h > b.y); }
 window.onload = () => { ox = (c.width-W)/2; oy = (c.height-H)/2; };
 </script>
