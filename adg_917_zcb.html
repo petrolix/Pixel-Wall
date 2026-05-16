@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Pixel Wall - Admin Suite</title>
+    <title>Pixel Wall -Admin Suite</title>
     <style>
         *{margin:0;padding:0;box-sizing:border-box; touch-action: none; }
         body { 
@@ -44,7 +44,9 @@
         
         .sel-field { display: flex; align-items: center; gap: 3px; font-size: 11px; color: #aaa; }
         input[type="number"] { width: 45px; background: #000; border: 1px solid #555; color: #d4a017; padding: 4px; border-radius: 4px; text-align: center; }
-        input[type="text"] { background: #000; border: 1px solid #555; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 11px; width: 180px; }
+        input[type="text"] { background: #000; border: 1px solid #555; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 11px; }
+        #linkUrl { width: 160px; }
+        #linkName { width: 140px; color: #d4a017; } /* Evidenzia il campo nome */
         #fileInput { font-size: 11px; color: #aaa; min-width: 150px; }
 
         .mode-toggle { display: flex; background: #000; padding: 2px; border-radius: 8px; border: 1px solid #444; }
@@ -58,6 +60,8 @@
 
         #canvas-container { flex-grow: 1; position: relative; overflow: hidden; background: #000; }
         canvas { display: block; image-rendering: pixelated; }
+        canvas.mode-pan { cursor: grab; }
+        canvas.mode-pan:active { cursor: grabbing; }
         #coords-label { color: #555; margin-left: auto; }
     </style>
 </head>
@@ -97,7 +101,8 @@
             <div class="sel-field">Y <input type="number" id="uy"></div>
             <div class="sel-field">W <input type="number" id="uw"></div>
             <div class="sel-field">H <input type="number" id="uh"></div>
-            <input type="text" id="linkUrl" placeholder="Inserisci Link reindirizzamento...">
+            <input type="text" id="linkUrl" placeholder="Link reindirizzamento (https://...)">
+            <input type="text" id="linkName" placeholder="Nome visualizzato tooltip...">
             <button id="clearSelBtn" style="background:none; border:none; color:#f88; font-size:18px; padding:0 5px;">✕</button>
         </div>
         <div style="display:flex; gap:8px; width:100%; align-items:center; border-top:1px solid #444; padding-top:8px; justify-content:flex-start;">
@@ -107,7 +112,22 @@
     </div>
 </header>
 
-<div id="canvas-container"><canvas id="c"></canvas></div>
+<div id="canvas-container"><canvas id="c" class="mode-pan"></canvas></div>
+
+<div id="url-tooltip" style="
+    position: fixed; 
+    display: none; 
+    background: rgba(0, 0, 0, 0.85); 
+    color: #d4a017; 
+    padding: 6px 12px; 
+    border-radius: 6px; 
+    border: 1px solid #d4a017; 
+    font-family: monospace; 
+    font-size: 11px; 
+    pointer-events: none; 
+    z-index: 99999;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+"></div>
 
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
@@ -183,6 +203,7 @@ document.getElementById("loginBtn").onclick = () => {
 document.getElementById("saveBtn").onclick = async () => {
     const file = document.getElementById("fileInput").files[0];
     const targetLink = document.getElementById("linkUrl").value.trim();
+    const targetName = document.getElementById("linkName").value.trim();
     if(!file || !preview.active) return alert("Scegli area e file");
     
     const btn = document.getElementById("saveBtn");
@@ -192,17 +213,15 @@ document.getElementById("saveBtn").onclick = async () => {
         const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD}/image/upload`, { method: "POST", body: form });
         const data = await res.json();
         
-        // Salvataggio con l'attributo strutturato del Link
         await db.collection("blocks").add({ 
             img: data.secure_url, 
             delete_token: data.delete_token, 
-            x: preview.x, 
-            y: preview.y, 
-            w: preview.w, 
-            h: preview.h,
-            link: targetLink // Memorizza la stringa dell'URL su Firestore
+            x: preview.x, y: preview.y, w: preview.w, h: preview.h,
+            link: targetLink,
+            linkName: targetName // Salviamo il nome personalizzato del link
         });
         document.getElementById("linkUrl").value = "";
+        document.getElementById("linkName").value = "";
         resetSelection();
     } catch(e) { alert("Errore"); }
     btn.disabled = false; btn.innerText = "PUBBLICA BLOCCO";
@@ -227,10 +246,14 @@ function applyZoom(s, cx, cy) {
     document.getElementById("zoom-level").innerText = Math.round(scale * 100) + "%";
 }
 
+c.addEventListener("wheel", e => { e.preventDefault(); applyZoom(e.deltaY < 0 ? 1.1 : 0.9, e.clientX, e.clientY); }, {passive: false});
+
 let evCache = [], prevDiff = -1, isMouseDown = false, startPos = null, lastM = {x:0, y:0};
+let totalMovement = 0;
 
 c.onpointerdown = e => {
     evCache.push(e); isMouseDown = true; lastM = {x:e.clientX, y:e.clientY};
+    totalMovement = 0;
     const r = c.getBoundingClientRect();
     const wp = { x: Math.floor((e.clientX-r.left-ox)/scale), y: Math.floor((e.clientY-r.top-oy)/scale) };
     if(evCache.length === 1) {
@@ -261,7 +284,25 @@ c.onpointermove = e => {
     const r = c.getBoundingClientRect();
     const cw = { x: Math.floor((e.clientX-r.left-ox)/scale), y: Math.floor((e.clientY-r.top-oy)/scale) };
     document.getElementById("coords-label").innerText = `X:${cw.x} Y:${cw.y}`;
+
+    // TOOLTIP NELL'ADMIN (Attivo se siamo in modalità NAVIGA e non trasciniamo)
+    const tooltip = document.getElementById("url-tooltip");
+    if (currentMode === 'pan' && !isMouseDown) {
+        const hoverTarget = blocks.find(b => cw.x >= b.x && cw.x < b.x + b.w && cw.y >= b.y && cw.y < b.y + b.h);
+        if (hoverTarget && hoverTarget.link) {
+            c.className = ""; c.style.cursor = "pointer";
+            tooltip.style.display = "block";
+            // Mostra il nome personalizzato se esiste, altrimenti l'URL standard
+            tooltip.innerText = hoverTarget.linkName ? `🔗 ${hoverTarget.linkName}` : `🔗 Apri: ${hoverTarget.link}`;
+            tooltip.style.left = (e.clientX + 15) + "px";
+            tooltip.style.top = (e.clientY + 15) + "px";
+        } else {
+            c.className = "mode-pan"; c.style.cursor = ""; tooltip.style.display = "none";
+        }
+    } else { tooltip.style.display = "none"; }
+
     if (isMouseDown && evCache.length === 1) {
+        totalMovement += Math.hypot(e.clientX - lastM.x, e.clientY - lastM.y);
         if (isAdmin && currentMode === 'select' && startPos) {
             let x1 = Math.max(0, Math.min(startPos.x, cw.x)), y1 = Math.max(0, Math.min(startPos.y, cw.y));
             let x2 = Math.min(W, Math.max(startPos.x, cw.x)+1), y2 = Math.min(H, Math.max(startPos.y, cw.y)+1);
@@ -274,6 +315,18 @@ c.onpointermove = e => {
 };
 
 c.onpointerup = c.onpointercancel = e => {
+    // CLICK PER APRIRE I LINK ANCHE NELL'ADMIN (Se siamo in modalità NAVIGA e non ci siamo mossi)
+    if (isMouseDown && evCache.length === 1 && totalMovement < 5 && currentMode === 'pan') {
+        const r = c.getBoundingClientRect();
+        const clickX = (e.clientX - r.left - ox) / scale;
+        const clickY = (e.clientY - r.top - oy) / scale;
+        const target = blocks.find(b => clickX >= b.x && clickX < b.x + b.w && clickY >= b.y && clickY < b.y + b.h);
+        if (target && target.link) {
+            let url = target.link.trim();
+            if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+            window.open(url, '_blank');
+        }
+    }
     evCache = evCache.filter(ev => ev.pointerId !== e.pointerId);
     if(evCache.length < 2) prevDiff = -1;
     isMouseDown = false;
@@ -283,10 +336,7 @@ function updatePreview(x, y, w, h) {
     preview = { x, y, w, h, active: true };
     selUI.style.display = "flex";
     selBox.style.display = "block";
-    document.getElementById("ux").value = x; 
-    document.getElementById("uy").value = y; 
-    document.getElementById("uw").value = w; 
-    document.getElementById("uh").value = h;
+    document.getElementById("ux").value = x; document.getElementById("uy").value = y; document.getElementById("uw").value = w; document.getElementById("uh").value = h;
     document.getElementById("statSel").innerText = (w * h).toLocaleString();
 }
 
