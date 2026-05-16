@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Pixel Wall -Admin Suite</title>
+    <title>Pixel Wall - Admin Suite</title>
     <style>
         *{margin:0;padding:0;box-sizing:border-box; touch-action: none; }
         body { 
@@ -59,15 +59,7 @@
         #removeBtn { background: #600; color: white; border: 1px solid red; display: none; }
 
         #canvas-container { flex-grow: 1; position: relative; overflow: hidden; background: #000; }
-        
-        /* Forza i bordi netti a livello CSS */
-        canvas { 
-            display: block; 
-            image-rendering: -moz-crisp-edges;
-            image-rendering: -webkit-crisp-edges;
-            image-rendering: pixelated; 
-            image-rendering: crisp-edges;
-        }
+        canvas { display: block; image-rendering: pixelated; }
         canvas.mode-pan { cursor: grab; }
         canvas.mode-pan:active { cursor: grabbing; }
         #coords-label { color: #555; margin-left: auto; }
@@ -175,12 +167,6 @@ function draw() {
     ctx.save();
     ctx.translate(Math.round(ox), Math.round(oy));
     ctx.scale(scale, scale);
-
-    // Disattiva lo smoothing sfocato sul contesto 2D dell'admin
-    ctx.imageSmoothingEnabled = false;
-    ctx.mozImageSmoothingEnabled = false;
-    ctx.webkitImageSmoothingEnabled = false;
-
     ctx.fillStyle = "#111"; ctx.fillRect(0, 0, W, H);
     if (scale > 5) {
         ctx.beginPath(); ctx.strokeStyle = "rgba(212,160,23,0.15)"; ctx.lineWidth = 1/scale;
