@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Pixel Wall - Admin Suite Pro</title>
+    <title>Pixel Wall - Admin Suite</title>
     <style>
         *{margin:0;padding:0;box-sizing:border-box; touch-action: none; }
         body { 
@@ -200,7 +200,7 @@ document.getElementById("loginBtn").onclick = () => {
     }
 };
 
-// --- NUOVA LOGICA CON COMPRESSIONE AUTOMATICA INTEGRATA ---
+// --- COMPRESSIONE AD ALTA NITIDEZZA (RETINA MULTIPLIER X3) ---
 document.getElementById("saveBtn").onclick = async () => {
     const file = document.getElementById("fileInput").files[0];
     const targetLink = document.getElementById("linkUrl").value.trim();
@@ -208,30 +208,35 @@ document.getElementById("saveBtn").onclick = async () => {
     if(!file || !preview.active) return alert("Scegli area e file");
     
     const btn = document.getElementById("saveBtn");
-    btn.disabled = true; btn.innerText = "COMPRESSIONE IN CORSO...";
+    btn.disabled = true; btn.innerText = "OTTIMIZZAZIONE NITIDEZZA...";
 
-    // 1. Leggiamo il file come immagine Javascript
     const imgReader = new FileReader();
     imgReader.readAsDataURL(file);
     imgReader.onload = (event) => {
         const tempImg = new Image();
         tempImg.src = event.target.result;
         tempImg.onload = async () => {
-            // 2. Creiamo un canvas "fantasma" scalato sulle misure di selezione (preview.w e preview.h)
+            // Moltiplicatore x3: genera pixel extra per preservare i dettagli durante lo zoom ravvicinato
+            const sharpnessMultiplier = 3; 
+            
             const canvasCompressor = document.createElement("canvas");
-            canvasCompressor.width = preview.w;
-            canvasCompressor.height = preview.h;
+            canvasCompressor.width = preview.w * sharpnessMultiplier;
+            canvasCompressor.height = preview.h * sharpnessMultiplier;
             const compCtx = canvasCompressor.getContext("2d");
             
-            // 3. Disegnamo l'immagine ridimensionandola al volo
-            compCtx.drawImage(tempImg, 0, 0, preview.w, preview.h);
+            // Algoritmi di smoothing ad alta qualità per evitare sgranature sul ricampionamento
+            compCtx.imageSmoothingEnabled = true;
+            compCtx.imageSmoothingQuality = "high";
             
-            // 4. Esportiamo il risultato in JPEG compresso (qualità 80%)
+            // Disegnamo l'immagine sul canvas esteso
+            compCtx.drawImage(tempImg, 0, 0, canvasCompressor.width, canvasCompressor.height);
+            
+            // Esportazione in JPEG compresso bilanciato all'85%
             canvasCompressor.toBlob(async (blob) => {
                 btn.innerText = "CARICO SU CLOUDINARY...";
                 
                 const form = new FormData(); 
-                form.append("file", blob, "compressed_pixel.jpg"); // Passiamo il blob compresso
+                form.append("file", blob, "optimized_pixel.jpg");
                 form.append("upload_preset", PRESET);
                 
                 try {
@@ -251,7 +256,7 @@ document.getElementById("saveBtn").onclick = async () => {
                 } catch(e) { alert("Errore nel caricamento!"); }
                 
                 btn.disabled = false; btn.innerText = "PUBBLICA BLOCCO";
-            }, "image/jpeg", 0.8); // 0.8 indica la qualità JPEG (da 0.1 a 1.0)
+            }, "image/jpeg", 0.85); 
         };
     };
 };
