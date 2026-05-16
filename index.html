@@ -46,7 +46,15 @@
         #sel-count-box { color: yellow; font-weight: bold; margin-left: 10px; display: none; }
 
         #canvas-container { flex-grow: 1; position: relative; overflow: hidden; background: #000; }
-        canvas { display: block; image-rendering: pixelated; }
+        
+        /* Forza i bordi netti a livello CSS */
+        canvas { 
+            display: block; 
+            image-rendering: -moz-crisp-edges;
+            image-rendering: -webkit-crisp-edges;
+            image-rendering: pixelated; 
+            image-rendering: crisp-edges;
+        }
         canvas.mode-pan { cursor: grab; }
         canvas.mode-pan:active { cursor: grabbing; }
         button { background:#333; color:white; border:1px solid #444; border-radius:4px; cursor:pointer; padding: 4px 8px; font-size: 11px; }
@@ -145,6 +153,12 @@ function draw() {
     ctx.save();
     ctx.translate(Math.round(ox), Math.round(oy));
     ctx.scale(scale, scale);
+
+    // Disattiva lo smoothing sfocato sul contesto 2D
+    ctx.imageSmoothingEnabled = false;
+    ctx.mozImageSmoothingEnabled = false;
+    ctx.webkitImageSmoothingEnabled = false;
+
     ctx.fillStyle = "#111"; ctx.fillRect(0, 0, W, H);
     if (scale > 8) {
         ctx.beginPath(); ctx.strokeStyle = "rgba(255,255,255,0.1)"; ctx.lineWidth = 1/scale;
@@ -214,7 +228,6 @@ c.onpointermove = e => {
         if (hoverTarget && hoverTarget.link) {
             c.className = ""; c.style.cursor = "pointer";
             tooltip.style.display = "block";
-            // Mostra il nome personalizzato se presente
             tooltip.innerText = hoverTarget.linkName ? `🔗 ${hoverTarget.linkName}` : `🔗 Apri: ${hoverTarget.link}`;
             tooltip.style.left = (e.clientX + 15) + "px";
             tooltip.style.top = (e.clientY + 15) + "px";
