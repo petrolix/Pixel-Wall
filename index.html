@@ -34,7 +34,6 @@
         }
         .mode-btn.active { background: #333; color: lime; }
 
-        /* UI SELEZIONE */
         #selectionUI { 
             display: none; align-items: center; gap: 6px; 
             background: #252525; padding: 4px 10px; border-radius: 8px; border: 1px solid lime;
@@ -42,7 +41,6 @@
         .sel-field { display: flex; align-items: center; gap: 3px; font-size: 10px; color: #aaa; }
         input { width: 42px; background: #000; border: 1px solid #555; color: lime; padding: 2px; border-radius: 4px; text-align: center; font-size: 11px; }
         
-        /* Statistiche */
         #stats-label { color: #555; font-weight: bold; margin-right: 5px; }
         .stat-item b { color: lime; }
         #sel-count-box { color: yellow; font-weight: bold; margin-left: 10px; display: none; }
@@ -210,21 +208,18 @@ c.onpointermove = e => {
     const cw = { x: Math.floor((e.clientX-r.left-ox)/scale), y: Math.floor((e.clientY-r.top-oy)/scale) };
     document.getElementById("coords-label").innerText = `X:${cw.x} Y:${cw.y}`;
 
-    // LOGICA DI CONTROLLO DEL TOOLTIP
     const tooltip = document.getElementById("url-tooltip");
     if (currentMode === 'pan' && !isMouseDown) {
         const hoverTarget = blocks.find(b => cw.x >= b.x && cw.x < b.x + b.w && cw.y >= b.y && cw.y < b.y + b.h);
         if (hoverTarget && hoverTarget.link) {
-            c.className = ""; // Rimuove temporaneamente grab
-            c.style.cursor = "pointer"; // Mostra la manina dei collegamenti
+            c.className = ""; c.style.cursor = "pointer";
             tooltip.style.display = "block";
-            tooltip.innerText = `🔗 Apri: ${hoverTarget.link}`;
+            // Mostra il nome personalizzato se presente
+            tooltip.innerText = hoverTarget.linkName ? `🔗 ${hoverTarget.linkName}` : `🔗 Apri: ${hoverTarget.link}`;
             tooltip.style.left = (e.clientX + 15) + "px";
             tooltip.style.top = (e.clientY + 15) + "px";
         } else {
-            c.className = "mode-pan"; // Ripristina grab
-            c.style.cursor = "";
-            tooltip.style.display = "none";
+            c.className = "mode-pan"; c.style.cursor = ""; tooltip.style.display = "none";
         }
     } else {
         tooltip.style.display = "none";
