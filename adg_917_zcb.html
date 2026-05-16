@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Pixel Wall -Admin Suite</title>
+    <title>Pixel Wall - Admin Suite</title>
     <style>
         *{margin:0;padding:0;box-sizing:border-box; touch-action: none; }
         body { 
@@ -207,7 +207,7 @@ document.getElementById("loginBtn").onclick = () => {
     }
 };
 
-// --- ELABORAZIONE PRO: RIDIMENSIONAMENTO PROGRESSIVO AD ALTA FEDELTÀ ---
+// --- INVIO FILE ORIGINALE PURO SENZA COMPRESSIONE CLIENT ---
 document.getElementById("saveBtn").onclick = async () => {
     const file = document.getElementById("fileInput").files[0];
     const targetLink = document.getElementById("linkUrl").value.trim();
@@ -215,82 +215,28 @@ document.getElementById("saveBtn").onclick = async () => {
     if(!file || !preview.active) return alert("Scegli area e file");
     
     const btn = document.getElementById("saveBtn");
-    btn.disabled = true; btn.innerText = "ELABORAZIONE GRAFICA...";
+    btn.disabled = true; btn.innerText = "CARICO SU CLOUDINARY...";
 
-    const imgReader = new FileReader();
-    imgReader.readAsDataURL(file);
-    imgReader.onload = (event) => {
-        const tempImg = new Image();
-        tempImg.src = event.target.result;
-        tempImg.onload = async () => {
-            
-            // Definiamo la risoluzione target finale desiderata (x3)
-            const targetW = preview.w * 3;
-            const targetH = preview.h * 3;
-
-            // Creiamo un canvas dinamico di appoggio per il resampling a step
-            let srcCanvas = document.createElement("canvas");
-            srcCanvas.width = tempImg.width;
-            srcCanvas.height = tempImg.height;
-            let srcCtx = srcCanvas.getContext("2d");
-            srcCtx.drawImage(tempImg, 0, 0);
-
-            let currentW = tempImg.width;
-            let currentH = tempImg.height;
-
-            // Algoritmo Step-Down: dimezza le dimensioni progressivamente per non perdere nitidezza
-            while (currentW > targetW * 2 && currentH > targetH * 2) {
-                currentW = Math.round(currentW / 2);
-                currentH = Math.round(currentH / 2);
-
-                const nextCanvas = document.createElement("canvas");
-                nextCanvas.width = currentW;
-                nextCanvas.height = currentH;
-                const nextCtx = nextCanvas.getContext("2d");
-                
-                nextCtx.imageSmoothingEnabled = true;
-                nextCtx.imageSmoothingQuality = "high";
-                nextCtx.drawImage(srcCanvas, 0, 0, srcCanvas.width, srcCanvas.height, 0, 0, currentW, currentH);
-                
-                srcCanvas = nextCanvas; // Sposta il riferimento allo step successivo
-            }
-
-            // Canvas finale impostato sulle dimensioni stabili target
-            const finalCanvas = document.createElement("canvas");
-            finalCanvas.width = targetW;
-            finalCanvas.height = targetH;
-            const finalCtx = finalCanvas.getContext("2d");
-            
-            finalCtx.imageSmoothingEnabled = true;
-            finalCtx.imageSmoothingQuality = "high";
-            finalCtx.drawImage(srcCanvas, 0, 0, srcCanvas.width, srcCanvas.height, 0, 0, targetW, targetH);
-            
-            // Esportazione JPEG con fattore di compressione minimo (92% di qualità pura)
-            finalCanvas.toBlob(async (blob) => {
-                btn.innerText = "CARICO SU CLOUDINARY...";
-                const form = new FormData(); 
-                form.append("file", blob, "hd_optimized_pixel.jpg");
-                form.append("upload_preset", PRESET);
-                
-                try {
-                    const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD}/image/upload`, { method: "POST", body: form });
-                    const data = await res.json();
-                    
-                    await db.collection("blocks").add({ 
-                        img: data.secure_url, 
-                        delete_token: data.delete_token, 
-                        x: preview.x, y: preview.y, w: preview.w, h: preview.h,
-                        link: targetLink,
-                        linkName: targetName
-                    });
-                    document.getElementById("linkUrl").value = "";
-                    document.getElementById("linkName").value = "";
-                    resetSelection();
-                } catch(e) { alert("Errore nel caricamento!"); }
-                btn.disabled = false; btn.innerText = "PUBBLICA BLOCCO";
-            }, "image/jpeg", 0.92); 
-        };
-    };
+    const form = new FormData(); 
+    form.append("file", file); // Invia direttamente il file di input intatto
+    form.append("upload_preset", PRESET);
+    
+    try {
+        const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD}/image/upload`, { method: "POST", body: form });
+        const data = await res.json();
+        
+        await db.collection("blocks").add({ 
+            img: data.secure_url, 
+            delete_token: data.delete_token, 
+            x: preview.x, y: preview.y, w: preview.w, h: preview.h,
+            link: targetLink,
+            linkName: targetName
+        });
+        document.getElementById("linkUrl").value = "";
+        document.getElementById("linkName").value = "";
+        resetSelection();
+    } catch(e) { alert("Errore nel caricamento!"); }
+    btn.disabled = false; btn.innerText = "PUBBLICA BLOCCO";
 };
 
 document.getElementById("removeBtn").onclick = async () => {
