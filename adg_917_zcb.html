@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Pixel Wall -Admin Suite</title>
+    <title>Pixel Wall - Admin Suite</title>
     <style>
         *{margin:0;padding:0;box-sizing:border-box; touch-action: none; }
         body { 
@@ -59,7 +59,7 @@
         #removeBtn { background: #600; color: white; border: 1px solid red; display: none; }
 
         #canvas-container { flex-grow: 1; position: relative; overflow: hidden; background: #000; }
-        canvas { display: block; image-rendering: pixelated; }
+        canvas { display: block; image-rendering: auto; } /* Mantiene lo smoothing lineare nativo */
         canvas.mode-pan { cursor: grab; }
         canvas.mode-pan:active { cursor: grabbing; }
         #coords-label { color: #555; margin-left: auto; }
@@ -168,12 +168,21 @@ function draw() {
     ctx.translate(Math.round(ox), Math.round(oy));
     ctx.scale(scale, scale);
     ctx.fillStyle = "#111"; ctx.fillRect(0, 0, W, H);
-    if (scale > 5) {
+    
+    // GRIGLIA REALE DA 1 PIXEL: Appare solo a zoom molto ravvicinato (> 15) per non appesantire la pagina
+    if (scale > 15) {
         ctx.beginPath(); ctx.strokeStyle = "rgba(212,160,23,0.15)"; ctx.lineWidth = 1/scale;
+        for(let x=0; x<=W; x+=1) { ctx.moveTo(x,0); ctx.lineTo(x,H); }
+        for(let y=0; y<=H; y+=1) { ctx.moveTo(0,y); ctx.lineTo(W,y); }
+        ctx.stroke();
+    } else if (scale > 4) {
+        // Griglia di orientamento ogni 10px quando si è a distanza intermedia
+        ctx.beginPath(); ctx.strokeStyle = "rgba(212,160,23,0.08)"; ctx.lineWidth = 1/scale;
         for(let x=0; x<=W; x+=10) { ctx.moveTo(x,0); ctx.lineTo(x,H); }
         for(let y=0; y<=H; y+=10) { ctx.moveTo(0,y); ctx.lineTo(W,y); }
         ctx.stroke();
     }
+
     for(let b of blocks) {
         if(!cache[b.img]) { cache[b.img] = new Image(); cache[b.img].src = b.img; }
         if(cache[b.img].complete) ctx.drawImage(cache[b.img], b.x, b.y, b.w, b.h);
