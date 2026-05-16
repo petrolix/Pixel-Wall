@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Pixel Wall -Admin Suite</title>
+    <title>Pixel Wall - Admin Suite Pro</title>
     <style>
         *{margin:0;padding:0;box-sizing:border-box; touch-action: none; }
         body { 
@@ -46,7 +46,7 @@
         input[type="number"] { width: 45px; background: #000; border: 1px solid #555; color: #d4a017; padding: 4px; border-radius: 4px; text-align: center; }
         input[type="text"] { background: #000; border: 1px solid #555; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 11px; }
         #linkUrl { width: 160px; }
-        #linkName { width: 140px; color: #d4a017; } /* Evidenzia il campo nome */
+        #linkName { width: 140px; color: #d4a017; }
         #fileInput { font-size: 11px; color: #aaa; min-width: 150px; }
 
         .mode-toggle { display: flex; background: #000; padding: 2px; border-radius: 8px; border: 1px solid #444; }
@@ -200,6 +200,7 @@ document.getElementById("loginBtn").onclick = () => {
     }
 };
 
+// --- NUOVA LOGICA CON COMPRESSIONE AUTOMATICA INTEGRATA ---
 document.getElementById("saveBtn").onclick = async () => {
     const file = document.getElementById("fileInput").files[0];
     const targetLink = document.getElementById("linkUrl").value.trim();
@@ -207,24 +208,52 @@ document.getElementById("saveBtn").onclick = async () => {
     if(!file || !preview.active) return alert("Scegli area e file");
     
     const btn = document.getElementById("saveBtn");
-    btn.disabled = true; btn.innerText = "CARICO...";
-    const form = new FormData(); form.append("file", file); form.append("upload_preset", PRESET);
-    try {
-        const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD}/image/upload`, { method: "POST", body: form });
-        const data = await res.json();
-        
-        await db.collection("blocks").add({ 
-            img: data.secure_url, 
-            delete_token: data.delete_token, 
-            x: preview.x, y: preview.y, w: preview.w, h: preview.h,
-            link: targetLink,
-            linkName: targetName // Salviamo il nome personalizzato del link
-        });
-        document.getElementById("linkUrl").value = "";
-        document.getElementById("linkName").value = "";
-        resetSelection();
-    } catch(e) { alert("Errore"); }
-    btn.disabled = false; btn.innerText = "PUBBLICA BLOCCO";
+    btn.disabled = true; btn.innerText = "COMPRESSIONE IN CORSO...";
+
+    // 1. Leggiamo il file come immagine Javascript
+    const imgReader = new FileReader();
+    imgReader.readAsDataURL(file);
+    imgReader.onload = (event) => {
+        const tempImg = new Image();
+        tempImg.src = event.target.result;
+        tempImg.onload = async () => {
+            // 2. Creiamo un canvas "fantasma" scalato sulle misure di selezione (preview.w e preview.h)
+            const canvasCompressor = document.createElement("canvas");
+            canvasCompressor.width = preview.w;
+            canvasCompressor.height = preview.h;
+            const compCtx = canvasCompressor.getContext("2d");
+            
+            // 3. Disegnamo l'immagine ridimensionandola al volo
+            compCtx.drawImage(tempImg, 0, 0, preview.w, preview.h);
+            
+            // 4. Esportiamo il risultato in JPEG compresso (qualità 80%)
+            canvasCompressor.toBlob(async (blob) => {
+                btn.innerText = "CARICO SU CLOUDINARY...";
+                
+                const form = new FormData(); 
+                form.append("file", blob, "compressed_pixel.jpg"); // Passiamo il blob compresso
+                form.append("upload_preset", PRESET);
+                
+                try {
+                    const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD}/image/upload`, { method: "POST", body: form });
+                    const data = await res.json();
+                    
+                    await db.collection("blocks").add({ 
+                        img: data.secure_url, 
+                        delete_token: data.delete_token, 
+                        x: preview.x, y: preview.y, w: preview.w, h: preview.h,
+                        link: targetLink,
+                        linkName: targetName
+                    });
+                    document.getElementById("linkUrl").value = "";
+                    document.getElementById("linkName").value = "";
+                    resetSelection();
+                } catch(e) { alert("Errore nel caricamento!"); }
+                
+                btn.disabled = false; btn.innerText = "PUBBLICA BLOCCO";
+            }, "image/jpeg", 0.8); // 0.8 indica la qualità JPEG (da 0.1 a 1.0)
+        };
+    };
 };
 
 document.getElementById("removeBtn").onclick = async () => {
@@ -285,14 +314,12 @@ c.onpointermove = e => {
     const cw = { x: Math.floor((e.clientX-r.left-ox)/scale), y: Math.floor((e.clientY-r.top-oy)/scale) };
     document.getElementById("coords-label").innerText = `X:${cw.x} Y:${cw.y}`;
 
-    // TOOLTIP NELL'ADMIN (Attivo se siamo in modalità NAVIGA e non trasciniamo)
     const tooltip = document.getElementById("url-tooltip");
     if (currentMode === 'pan' && !isMouseDown) {
         const hoverTarget = blocks.find(b => cw.x >= b.x && cw.x < b.x + b.w && cw.y >= b.y && cw.y < b.y + b.h);
         if (hoverTarget && hoverTarget.link) {
             c.className = ""; c.style.cursor = "pointer";
             tooltip.style.display = "block";
-            // Mostra il nome personalizzato se esiste, altrimenti l'URL standard
             tooltip.innerText = hoverTarget.linkName ? `🔗 ${hoverTarget.linkName}` : `🔗 Apri: ${hoverTarget.link}`;
             tooltip.style.left = (e.clientX + 15) + "px";
             tooltip.style.top = (e.clientY + 15) + "px";
@@ -315,7 +342,6 @@ c.onpointermove = e => {
 };
 
 c.onpointerup = c.onpointercancel = e => {
-    // CLICK PER APRIRE I LINK ANCHE NELL'ADMIN (Se siamo in modalità NAVIGA e non ci siamo mossi)
     if (isMouseDown && evCache.length === 1 && totalMovement < 5 && currentMode === 'pan') {
         const r = c.getBoundingClientRect();
         const clickX = (e.clientX - r.left - ox) / scale;
